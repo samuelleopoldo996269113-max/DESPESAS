@@ -542,17 +542,17 @@ function editTransaction(tx) {
   const amountLabel = document.createElement("label");
   amountLabel.textContent = t("amount");
 
-  const amountInput = document.createElement("input");
-  amountInput.type = "number";
-  amountInput.min = "0.01";
-  amountInput.step = "0.01";
-  amountInput.value = original.amount;
+  const editAmountInput = document.createElement("input");
+  editAmountInput.type = "number";
+  editAmountInput.min = "0.01";
+  editAmountInput.step = "0.01";
+  editAmountInput.value = original.amount;
 
-  menu.append(descriptionLabel, descriptionInput, amountLabel, amountInput);
+  menu.append(descriptionLabel, descriptionInput, amountLabel, editAmountInput);
 
   addModalButton(menu, t("saveChanges"), () => {
     const newDescription = descriptionInput.value.trim();
-    const newAmount = Number(amountInput.value);
+    const newAmount = Number(editAmountInput.value);
 
     if (!newDescription || newAmount <= 0) {
       alert(t("invalidEdit"));
