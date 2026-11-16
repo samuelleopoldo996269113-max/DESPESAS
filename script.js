@@ -602,28 +602,11 @@ function showAmount() {
 }
 
 /* Substitui o comportamento normal do campo: cada número entra à direita. */
-amountInput.addEventListener("beforeinput", event => {
-  const type = event.inputType;
-
-  if (type === "insertText" && event.data) {
-    event.preventDefault();
-    const digits = event.data.replace(/\D/g, "");
-    if (!digits) return;
-    const next = Number(String(amountCents) + digits);
-    if (next <= 99999999999) amountCents = next;
-    showAmount();
-  } else if (type === "deleteContentBackward" || type === "deleteContentForward") {
-    event.preventDefault();
-    amountCents = Math.floor(amountCents / 10);
-    showAmount();
-  } else if (type === "insertFromPaste" || type === "insertReplacementText" || type === "insertCompositionText") {
-    event.preventDefault();
-  }
-});
+/* (o código antigo do beforeinput foi removido; o evento input abaixo faz tudo) */
 
 /* Reserva para teclados de celular que não enviam o beforeinput: lê o que foi digitado e refaz. */
 amountInput.addEventListener("input", () => {
-  const digits = amountInput.value.replace(/\D/g, "");
+  const digits = amountInput.value.replace(/\D/g, "").replace(/^0+/, "");
   amountCents = digits ? Number(digits.slice(0, 11)) : 0;
   showAmount();
 });
