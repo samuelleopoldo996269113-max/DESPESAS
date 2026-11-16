@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Minhas despesas</title>
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#10243b">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Despesas">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -57,7 +64,7 @@
       <input id="description" required>
 
       <label id="lblAmount">Valor</label>
-      <input id="amount" type="number" min="0.01" step="0.01" required placeholder="0,00">
+      <input id="amount" type="text" inputmode="numeric" autocomplete="off" required placeholder="0,00" value="0,00">
 
       <label id="lblDate">Data</label>
       <input id="dueDate" type="date" required>
@@ -71,7 +78,7 @@
 
       <div id="countField" hidden>
         <label id="lblCount">Quantidade de parcelas</label>
-        <input id="count" type="number" min="2" value="2">
+        <input id="count" type="number" inputmode="numeric" min="2" placeholder="0">
       </div>
 
       <button type="submit" id="saveButton">Salvar</button>
@@ -112,5 +119,13 @@
   </div>
 
   <script src="script.js"></script>
+  <!-- PWA: registra o service worker (permite instalar e abrir sem internet) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
