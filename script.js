@@ -881,7 +881,8 @@ Object.assign(I18N.pt, {
   scanDownloading: "Baixando o leitor de texto (só na primeira vez, precisa de internet)...",
   scanProgress: "Lendo a nota... {p}%",
   scanError: "Não consegui ler a nota. Confira a internet e tente de novo, com a foto bem iluminada e sem tremer.",
-  scanNoValue: "Não achei o valor na foto. Preencha o valor e confira os outros campos."
+  scanNoValue: "Não achei o valor na foto. Preencha o valor e confira os outros campos.",
+  scanSeen: "Texto lido:"
 });
 Object.assign(I18N.en, {
   scanTitle: "Reading the receipt",
@@ -889,7 +890,8 @@ Object.assign(I18N.en, {
   scanDownloading: "Downloading the text reader (first time only, needs internet)...",
   scanProgress: "Reading the receipt... {p}%",
   scanError: "Could not read the receipt. Check your internet and try again with a well-lit, steady photo.",
-  scanNoValue: "Could not find the amount in the photo. Fill in the amount and check the other fields."
+  scanNoValue: "Could not find the amount in the photo. Fill in the amount and check the other fields.",
+  scanSeen: "Text read:"
 });
 Object.assign(I18N.es, {
   scanTitle: "Leyendo el recibo",
@@ -897,7 +899,8 @@ Object.assign(I18N.es, {
   scanDownloading: "Descargando el lector de texto (solo la primera vez, necesita internet)...",
   scanProgress: "Leyendo el recibo... {p}%",
   scanError: "No pude leer el recibo. Revisa el internet e inténtalo de nuevo con una foto bien iluminada y sin movimiento.",
-  scanNoValue: "No encontré el valor en la foto. Completa el valor y revisa los otros campos."
+  scanNoValue: "No encontré el valor en la foto. Completa el valor y revisa los otros campos.",
+  scanSeen: "Texto leído:"
 });
 
 /* PURE:START (funções de interpretação do texto lido, sem acesso à tela) */
@@ -999,7 +1002,8 @@ function scanFindDate(lines, todayText) {
 }
 
 function parseReceipt(text, todayText) {
-  const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const fixed = String(text || "").replace(/(\d)\s*([,.])\s*(\d{2})(?!\d)/g, "$1$2$3");
+  const lines = fixed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   return {
     value: scanFindTotal(lines),
     name: scanFindName(lines),
@@ -1042,7 +1046,7 @@ function scanPrepareImage(file) {
 
     img.onload = () => {
       try {
-        const limit = 1800;
+        const limit = 2600;
         const scale = Math.min(1, limit / Math.max(img.naturalWidth, img.naturalHeight));
         const w = Math.max(1, Math.round(img.naturalWidth * scale));
         const h = Math.max(1, Math.round(img.naturalHeight * scale));
@@ -1087,7 +1091,7 @@ function scanPrepareImage(file) {
   });
 }
 
-function scanFillForm(result) {
+function scanFillForm(result, rawText) {
   document.getElementById("addButton").click();   // abre a tela normal de nova movimentação
   setType("expense");
   if (result.name) document.getElementById("description").value = result.name;
@@ -1096,7 +1100,10 @@ function scanFillForm(result) {
     showAmount();
   }
   document.getElementById("dueDate").value = result.date;
-  if (!(result.value > 0)) alert(t("scanNoValue"));
+  if (!(result.value > 0)) {
+    const seen = String(rawText || "").replace(/\s+/g, " ").trim().slice(0, 400);
+    alert(t("scanNoValue") + "\n\n" + (t("scanSeen")) + " " + (seen || "(-)"));
+  }
 }
 
 async function scanReceipt(file) {
@@ -1119,12 +1126,21 @@ async function scanReceipt(file) {
       }
     });
 
-    try { await worker.setParameters({ tessedit_pageseg_mode: "4" }); } catch {}
+    const todayText = dateString(new Date());
+    let text = "";
+    let result = null;
 
-    const { data } = await worker.recognize(image);
-    const result = parseReceipt(data && data.text, dateString(new Date()));
+    for (const mode of ["4", "6"]) {
+      try { await worker.setParameters({ tessedit_pageseg_mode: mode }); } catch {}
+      const { data } = await worker.recognize(image);
+      const read = (data && data.text) || "";
+      const attempt = parseReceipt(read, todayText);
+      if (!result || attempt.value > 0) { result = attempt; text = read; }
+      if (attempt.value > 0) break;
+    }
+
     scanHide();
-    scanFillForm(result);
+    scanFillForm(result, text);
   } catch (error) {
     scanHide();
     alert(t("scanError"));
