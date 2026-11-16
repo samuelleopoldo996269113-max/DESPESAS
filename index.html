@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minhas despesas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1 id="appTitle">Minhas despesas</h1>
+    <div class="topo-botoes">
+      <button id="addButton" aria-label="Adicionar">+</button>
+      <button id="menuButton" class="menu-dots" aria-label="Configurações">&#8942;</button>
+    </div>
+  </header>
+
+  <nav class="mes">
+    <button id="prevMonth">&#8249;</button>
+    <strong id="monthLabel"></strong>
+    <button id="nextMonth">&#8250;</button>
+  </nav>
+
+  <div id="overdueAlert" class="alerta" hidden></div>
+
+  <main>
+    <div id="transactions"></div>
+  </main>
+
+  <footer class="resumo">
+    <div>
+      <span id="lblTotal">Total a pagar</span>
+      <strong id="totalExpenses">R$ 0,00</strong>
+    </div>
+    <div>
+      <span id="lblRemaining">Saldo a pagar</span>
+      <strong id="remaining">R$ 0,00</strong>
+    </div>
+    <div class="wallet">
+      <span id="lblWallet">Carteira</span>
+      <strong id="wallet">R$ 0,00</strong>
+    </div>
+  </footer>
+
+  <div id="txOverlay" class="overlay" hidden>
+    <form id="txForm" class="formulario">
+      <h2 id="formTitle">Nova movimentação</h2>
+
+      <label id="lblType">Tipo de movimentação</label>
+      <div class="type-buttons">
+        <button type="button" id="expenseButton" class="type-choice expense-choice">DESPESA</button>
+        <button type="button" id="incomeButton" class="type-choice income-choice">ENTRADA</button>
+      </div>
+      <p id="typeError" class="type-error" hidden></p>
+
+      <label id="lblDescription">Descrição</label>
+      <input id="description" required>
+
+      <label id="lblAmount">Valor</label>
+      <input id="amount" type="number" min="0.01" step="0.01" required placeholder="0,00">
+
+      <label id="lblDate">Data</label>
+      <input id="dueDate" type="date" required>
+
+      <label id="lblRepeat">Repetição</label>
+      <select id="repeat">
+        <option value="none"></option>
+        <option value="monthly"></option>
+        <option value="installments"></option>
+      </select>
+
+      <div id="countField" hidden>
+        <label id="lblCount">Quantidade de parcelas</label>
+        <input id="count" type="number" min="2" value="2">
+      </div>
+
+      <button type="submit" id="saveButton">Salvar</button>
+      <button type="button" id="cancelButton">Cancelar</button>
+    </form>
+  </div>
+
+  <div id="settingsOverlay" class="action-overlay" hidden>
+    <div class="action-menu settings-menu">
+      <button type="button" id="closeSettings" class="close-x" aria-label="Fechar">&#10005;</button>
+      <h2 id="settingsTitle">Configurações</h2>
+
+      <label id="lblLanguage">Idioma</label>
+      <select id="languageSelect">
+        <option value="pt">Português</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
+
+      <label id="lblMode">Modo</label>
+      <div class="choice-row">
+        <button type="button" class="choice" data-mode="light" id="modeLight">Claro</button>
+        <button type="button" class="choice" data-mode="dark" id="modeDark">Escuro</button>
+      </div>
+
+      <label id="lblColor">Cor do aplicativo</label>
+      <div class="choice-row">
+        <button type="button" class="choice" data-color="blue" id="colorBlue">Azul</button>
+        <button type="button" class="choice" data-color="pink" id="colorPink">Rosa</button>
+      </div>
+
+      <label id="lblBackup">Backup</label>
+      <button type="button" id="exportButton">Exportar backup</button>
+      <button type="button" id="importButton">Importar backup</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <p id="backupInfo" class="backup-info"></p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
