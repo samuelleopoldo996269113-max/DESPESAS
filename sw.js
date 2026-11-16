@@ -1,4 +1,4 @@
-const CACHE = "minhas-despesas-v1";
+const CACHE = "minhas-despesas-v3";
 const FILES = [
   "./",
   "./index.html",
@@ -28,6 +28,8 @@ self.addEventListener("activate", event => {
 /* Tenta a internet primeiro (para pegar atualizações) e usa o cache se estiver sem rede. */
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
+  /* Pedidos para outros sites (como o leitor de notas) passam direto, sem cópia guardada. */
+  if (new URL(event.request.url).origin !== self.location.origin) return;
 
   event.respondWith(
     fetch(event.request)
