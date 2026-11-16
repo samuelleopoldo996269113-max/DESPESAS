@@ -421,3 +421,23 @@ main { padding: 12px; padding-bottom: 190px; }
     padding-right: max(16px, calc((100% - 800px) / 2));
   }
 }
+
+/* LEITOR DE NOTAS (câmera) */
+.topo h1 { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.topo-botoes svg { display: block; margin: auto; }
+
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px;
+  background: rgba(0,0,0,.6);
+}
+
+.scan-overlay[hidden] { display: none !important; }
+
+.scan-overlay .action-menu p { margin: 8px 0 0; line-height: 1.4; }
