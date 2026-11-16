@@ -585,8 +585,56 @@ function setType(type) {
 document.getElementById("expenseButton").addEventListener("click", () => setType("expense"));
 document.getElementById("incomeButton").addEventListener("click", () => setType("income"));
 
+/* ---------- CAMPO DE VALOR (estilo banco: os números entram pela direita) ---------- */
+const amountInput = document.getElementById("amount");
+let amountCents = 0;
+
+function formatCents(cents) {
+  const text = String(cents).padStart(3, "0");
+  const reais = text.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `${reais},${text.slice(-2)}`;
+}
+
+function showAmount() {
+  amountInput.value = formatCents(amountCents);
+  const end = amountInput.value.length;
+  try { amountInput.setSelectionRange(end, end); } catch {}
+}
+
+/* Substitui o comportamento normal do campo: cada número entra à direita. */
+amountInput.addEventListener("beforeinput", event => {
+  const type = event.inputType;
+
+  if (type === "insertText" && event.data) {
+    event.preventDefault();
+    const digits = event.data.replace(/\D/g, "");
+    if (!digits) return;
+    const next = Number(String(amountCents) + digits);
+    if (next <= 99999999999) amountCents = next;
+    showAmount();
+  } else if (type === "deleteContentBackward" || type === "deleteContentForward") {
+    event.preventDefault();
+    amountCents = Math.floor(amountCents / 10);
+    showAmount();
+  } else if (type === "insertFromPaste" || type === "insertReplacementText" || type === "insertCompositionText") {
+    event.preventDefault();
+  }
+});
+
+/* Reserva para teclados de celular que não enviam o beforeinput: lê o que foi digitado e refaz. */
+amountInput.addEventListener("input", () => {
+  const digits = amountInput.value.replace(/\D/g, "");
+  amountCents = digits ? Number(digits.slice(0, 11)) : 0;
+  showAmount();
+});
+
+amountInput.addEventListener("focus", showAmount);
+amountInput.addEventListener("click", showAmount);
+
 document.getElementById("addButton").addEventListener("click", () => {
   form.reset();
+  amountCents = 0;
+  showAmount();
   setType("");
   document.getElementById("dueDate").value = dateString(new Date());
   document.getElementById("countField").hidden = true;
@@ -598,7 +646,9 @@ document.getElementById("cancelButton").addEventListener("click", () => {
 });
 
 document.getElementById("repeat").addEventListener("change", event => {
-  document.getElementById("countField").hidden = event.target.value !== "installments";
+  const isInstallments = event.target.value === "installments";
+  document.getElementById("countField").hidden = !isInstallments;
+  if (isInstallments) document.getElementById("count").value = "";
 });
 
 form.addEventListener("submit", event => {
@@ -611,7 +661,7 @@ form.addEventListener("submit", event => {
 
   const type = selectedType;
   const description = document.getElementById("description").value.trim();
-  const amount = Number(document.getElementById("amount").value);
+  const amount = amountCents / 100;
   const date = document.getElementById("dueDate").value;
   const repeat = document.getElementById("repeat").value;
   const count = Number(document.getElementById("count").value);
