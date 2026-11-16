@@ -17,6 +17,9 @@
   <header class="topo">
     <h1 id="appTitle">Minhas despesas</h1>
     <div class="topo-botoes">
+      <button id="scanButton" aria-label="Ler nota com a câmera">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </button>
       <button id="addButton" aria-label="Adicionar">+</button>
       <button id="menuButton" class="menu-dots" aria-label="Configurações">&#8942;</button>
     </div>
@@ -115,6 +118,15 @@
       <button type="button" id="importButton">Importar backup</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>
       <p id="backupInfo" class="backup-info"></p>
+    </div>
+  </div>
+
+  <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+
+  <div id="scanOverlay" class="scan-overlay" hidden>
+    <div class="action-menu">
+      <h2 id="scanTitle">Lendo a nota</h2>
+      <p id="scanStatus"></p>
     </div>
   </div>
 
