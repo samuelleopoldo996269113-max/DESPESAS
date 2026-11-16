@@ -873,6 +873,279 @@ document.getElementById("importFile").addEventListener("change", event => {
   event.target.value = "";
 });
 
+/* ---------- LEITOR DE NOTAS (câmera) ---------- */
+/* Tudo deste bloco é novo. Ele só usa funções que já existem (setType, showAmount, dateString, t). */
+Object.assign(I18N.pt, {
+  scanTitle: "Lendo a nota",
+  scanReading: "Lendo a nota... pode levar alguns segundos.",
+  scanDownloading: "Baixando o leitor de texto (só na primeira vez, precisa de internet)...",
+  scanProgress: "Lendo a nota... {p}%",
+  scanError: "Não consegui ler a nota. Confira a internet e tente de novo, com a foto bem iluminada e sem tremer.",
+  scanNoValue: "Não achei o valor na foto. Preencha o valor e confira os outros campos."
+});
+Object.assign(I18N.en, {
+  scanTitle: "Reading the receipt",
+  scanReading: "Reading the receipt... this may take a few seconds.",
+  scanDownloading: "Downloading the text reader (first time only, needs internet)...",
+  scanProgress: "Reading the receipt... {p}%",
+  scanError: "Could not read the receipt. Check your internet and try again with a well-lit, steady photo.",
+  scanNoValue: "Could not find the amount in the photo. Fill in the amount and check the other fields."
+});
+Object.assign(I18N.es, {
+  scanTitle: "Leyendo el recibo",
+  scanReading: "Leyendo el recibo... puede tardar unos segundos.",
+  scanDownloading: "Descargando el lector de texto (solo la primera vez, necesita internet)...",
+  scanProgress: "Leyendo el recibo... {p}%",
+  scanError: "No pude leer el recibo. Revisa el internet e inténtalo de nuevo con una foto bien iluminada y sin movimiento.",
+  scanNoValue: "No encontré el valor en la foto. Completa el valor y revisa los otros campos."
+});
+
+/* PURE:START (funções de interpretação do texto lido, sem acesso à tela) */
+const SCAN_MONEY_RE = /(?<![\d.,\/-])(?:\d{1,3}(?:\.\d{3})+|\d+)[.,]\d{2}(?!\d)(?![.,]\d)/g;
+
+function scanParseMoney(text) {
+  let s = text.trim();
+  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (s.includes(",")) s = s.replace(",", ".");
+  const n = Number(s);
+  return isFinite(n) ? n : NaN;
+}
+
+function scanAmountsIn(line) {
+  return (line.match(SCAN_MONEY_RE) || []).map(scanParseMoney).filter(n => n > 0 && n < 10000000);
+}
+
+function scanFindTotal(lines) {
+  const bad = /(sub\s*-?\s*total|troco|valor\s+pago|pago\b|pagto|recebid|dinheiro|desconto|acr[eé]scimo|\bqtd|icms|\bpis\b|cofins|tribut|imposto|juros|multa|aproximad)/i;
+  const tiers = [
+    /(valor\s+(total\s+)?a\s+pagar|total\s+a\s+pagar|valor\s+do\s+documento|valor\s+cobrado|total\s+da\s+fatura|total\s+geral|valor\s+total|vlr\.?\s*total)/i,
+    /(\btotal\b|l[ií]quido|a\s+pagar)/i,
+    /(\bvalor\b|\bpre[cç]o\b|tarifa|ped[aá]gio|estacionamento|permanência)/i
+  ];
+  for (const tier of tiers) {
+    const found = [];
+    lines.forEach((line, i) => {
+      if (!tier.test(line) || bad.test(line)) return;
+      let amounts = scanAmountsIn(line);
+      if (!amounts.length && lines[i + 1] && !bad.test(lines[i + 1])) amounts = scanAmountsIn(lines[i + 1]);
+      found.push(...amounts);
+    });
+    if (found.length) return Math.max(...found);
+  }
+  const all = [];
+  lines.forEach(line => { if (!bad.test(line)) all.push(...scanAmountsIn(line)); });
+  return all.length ? Math.max(...all) : 0;
+}
+
+function scanTitleCase(text) {
+  const small = ["de", "da", "do", "das", "dos", "e"];
+  return text.toLowerCase().split(" ").map((w, i) =>
+    (i > 0 && small.includes(w)) ? w : w.charAt(0).toUpperCase() + w.slice(1)
+  ).join(" ");
+}
+
+function scanFindName(lines) {
+  const skip = /(cnpj|cpf|\bie\s*:|inscri|cupom|nota\s+fiscal|nfc-?e|danfe|documento|consumidor|www\.|http|@|\btel\b|fone|\brua\b|\bav\.|avenida|endere|\bdata\b|\bhora\b|extrato|via\s+do|comprovante|recibo)/i;
+  const good = line => {
+    const letters = (line.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+    const size = line.replace(/\s/g, "").length;
+    return letters >= 4 && size > 0 && letters / size >= 0.65;
+  };
+  const top = lines.slice(0, 12);
+  let pick = top.find(line => good(line) && !skip.test(line)) || top.find(good) || "";
+  pick = pick.replace(/[^A-Za-zÀ-ÿ0-9&.\- ]/g, " ").replace(/\s+/g, " ").trim();
+  if (pick.length > 40) pick = pick.slice(0, 40).trim();
+  const letters = pick.replace(/[^A-Za-zÀ-ÿ]/g, "");
+  if (letters && letters === letters.toUpperCase()) pick = scanTitleCase(pick);
+  return pick;
+}
+
+function scanValidDate(d, m, y) {
+  if (y < 100) y += 2000;
+  if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  const dt = new Date(y, m - 1, d);
+  if (dt.getMonth() !== m - 1) return null;
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function scanDatesIn(line) {
+  const out = [];
+  const re = /(?<!\d)(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2})(?!\d)/g;
+  let m;
+  while ((m = re.exec(line))) {
+    const v = scanValidDate(Number(m[1]), Number(m[2]), Number(m[3]));
+    if (v) out.push(v);
+  }
+  return out;
+}
+
+function scanFindDate(lines, todayText) {
+  const due = /(vencimento|\bvenc\b|\bvence\b|pagar\s+at[eé])/i;
+  for (let i = 0; i < lines.length; i++) {
+    if (!due.test(lines[i])) continue;
+    const here = scanDatesIn(lines[i]);
+    if (here.length) return here[0];
+    const next = lines[i + 1] ? scanDatesIn(lines[i + 1]) : [];
+    if (next.length) return next[0];
+  }
+  const today = new Date(todayText + "T12:00:00");
+  for (const line of lines) {
+    for (const d of scanDatesIn(line)) {
+      const diff = (new Date(d + "T12:00:00") - today) / 86400000;
+      if (diff <= 1 && diff >= -400) return d;
+    }
+  }
+  return todayText;
+}
+
+function parseReceipt(text, todayText) {
+  const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  return {
+    value: scanFindTotal(lines),
+    name: scanFindName(lines),
+    date: scanFindDate(lines, todayText)
+  };
+}
+/* PURE:END */
+
+function scanShow(message) {
+  document.getElementById("scanTitle").textContent = t("scanTitle");
+  document.getElementById("scanStatus").textContent = message;
+  document.getElementById("scanOverlay").hidden = false;
+}
+
+function scanHide() {
+  document.getElementById("scanOverlay").hidden = true;
+}
+
+let scanTesseractPromise = null;
+
+function scanLoadLibrary() {
+  if (window.Tesseract) return Promise.resolve();
+  if (!scanTesseractPromise) {
+    scanTesseractPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+      script.onload = () => resolve();
+      script.onerror = () => { scanTesseractPromise = null; reject(new Error("load")); };
+      document.head.appendChild(script);
+    });
+  }
+  return scanTesseractPromise;
+}
+
+/* Reduz a foto e aumenta o contraste, o que ajuda muito a leitura de papel térmico. */
+function scanPrepareImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const limit = 1800;
+        const scale = Math.min(1, limit / Math.max(img.naturalWidth, img.naturalHeight));
+        const w = Math.max(1, Math.round(img.naturalWidth * scale));
+        const h = Math.max(1, Math.round(img.naturalHeight * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const image = ctx.getImageData(0, 0, w, h);
+        const px = image.data;
+        const hist = new Array(256).fill(0);
+        for (let i = 0; i < px.length; i += 4) {
+          const g = Math.round(0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]);
+          px[i] = g;
+          hist[g]++;
+        }
+        const total = w * h;
+        let low = 0, high = 255, acc = 0;
+        for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= total * 0.02) { low = v; break; } }
+        acc = 0;
+        for (let v = 255; v >= 0; v--) { acc += hist[v]; if (acc >= total * 0.02) { high = v; break; } }
+        const range = Math.max(30, high - low);
+        for (let i = 0; i < px.length; i += 4) {
+          const v = Math.max(0, Math.min(255, Math.round((px[i] - low) * 255 / range)));
+          px[i] = px[i + 1] = px[i + 2] = v;
+        }
+        ctx.putImageData(image, 0, 0);
+
+        canvas.toBlob(blob => {
+          URL.revokeObjectURL(url);
+          if (blob) resolve(blob); else reject(new Error("blob"));
+        }, "image/png");
+      } catch (error) {
+        URL.revokeObjectURL(url);
+        reject(error);
+      }
+    };
+
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("img")); };
+    img.src = url;
+  });
+}
+
+function scanFillForm(result) {
+  document.getElementById("addButton").click();   // abre a tela normal de nova movimentação
+  setType("expense");
+  if (result.name) document.getElementById("description").value = result.name;
+  if (result.value > 0) {
+    amountCents = Math.round(result.value * 100);
+    showAmount();
+  }
+  document.getElementById("dueDate").value = result.date;
+  if (!(result.value > 0)) alert(t("scanNoValue"));
+}
+
+async function scanReceipt(file) {
+  scanShow(t("scanReading"));
+  let worker = null;
+
+  try {
+    await scanLoadLibrary();
+    const image = await scanPrepareImage(file);
+
+    worker = await Tesseract.createWorker("por", 1, {
+      logger: info => {
+        if (!info) return;
+        if (/loading|initializ/i.test(info.status || "")) {
+          document.getElementById("scanStatus").textContent = t("scanDownloading");
+        } else if (info.status === "recognizing text" && typeof info.progress === "number") {
+          document.getElementById("scanStatus").textContent =
+            t("scanProgress").replace("{p}", Math.round(info.progress * 100));
+        }
+      }
+    });
+
+    try { await worker.setParameters({ tessedit_pageseg_mode: "4" }); } catch {}
+
+    const { data } = await worker.recognize(image);
+    const result = parseReceipt(data && data.text, dateString(new Date()));
+    scanHide();
+    scanFillForm(result);
+  } catch (error) {
+    scanHide();
+    alert(t("scanError"));
+  } finally {
+    if (worker) { try { await worker.terminate(); } catch {} }
+  }
+}
+
+document.getElementById("scanButton").addEventListener("click", () => {
+  if (!document.getElementById("txOverlay").hidden) return;
+  if (!document.getElementById("settingsOverlay").hidden) return;
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  document.getElementById("scanFile").click();
+});
+
+document.getElementById("scanFile").addEventListener("change", event => {
+  const file = event.target.files && event.target.files[0];
+  event.target.value = "";
+  if (file) scanReceipt(file);
+});
+
 /* ---------- INICIAR ---------- */
 loadSettings();
 applyTheme();
