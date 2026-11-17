@@ -870,7 +870,7 @@ function importBackup(file) {
     try {
       // Ignora marcas de formatação (```json ... ```) caso o arquivo tenha sido copiado e colado.
       const cleaned = String(reader.result)
-        .replace(/^\uFEFF/, "")
+        .replace(/^﻿/, "")
         .trim()
         .replace(/^```[a-zA-Z]*\s*/, "")
         .replace(/\s*```$/, "")
@@ -1247,4 +1247,4 @@ loadSettings();
 applyTheme();
 applyLanguage();
 loadData();
-render(); 
+render();
