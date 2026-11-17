@@ -4,7 +4,7 @@ let currentDate = new Date();
 const STORAGE_KEY = "minhasDespesas";
 const SETTINGS_KEY = "minhasDespesasConfig";
 
-const settings = { lang: "pt", mode: "light", color: "none" };
+const settings = { lang: "pt", mode: "light", color: "none", cardDay: 0, cardNext: true };
 
 /* ---------- TRADUÇÕES ---------- */
 const I18N = {
@@ -13,8 +13,8 @@ const I18N = {
     title: "Minhas despesas",
     total: "Total a pagar", remaining: "Saldo a pagar", wallet: "Carteira",
     newTx: "Nova movimentação", type: "Tipo de movimentação",
-    expense: "DESPESA", income: "ENTRADA",
-    typeError: "Escolha despesa ou entrada.",
+    expense: "DESPESA", income: "ENTRADA", card: "CARTÃO", cardTotal: "Cartão de crédito",
+    typeError: "Escolha despesa, entrada ou cartão.",
     description: "Descrição", descPlaceholder: "Ex.: Luz",
     amount: "Valor", date: "Data", repeat: "Repetição",
     repNone: "Não repetir", repMonthly: "Repetir todo mês", repInstallments: "Parcelar",
@@ -46,8 +46,8 @@ const I18N = {
     title: "My expenses",
     total: "Total to pay", remaining: "Balance to pay", wallet: "Wallet",
     newTx: "New transaction", type: "Transaction type",
-    expense: "EXPENSE", income: "INCOME",
-    typeError: "Choose expense or income.",
+    expense: "EXPENSE", income: "INCOME", card: "CARD", cardTotal: "Credit card",
+    typeError: "Choose expense, income or card.",
     description: "Description", descPlaceholder: "E.g.: Electricity",
     amount: "Amount", date: "Date", repeat: "Repeat",
     repNone: "Do not repeat", repMonthly: "Repeat every month", repInstallments: "Installments",
@@ -79,8 +79,8 @@ const I18N = {
     title: "Mis gastos",
     total: "Total a pagar", remaining: "Saldo a pagar", wallet: "Cartera",
     newTx: "Nuevo movimiento", type: "Tipo de movimiento",
-    expense: "GASTO", income: "INGRESO",
-    typeError: "Elige gasto o ingreso.",
+    expense: "GASTO", income: "INGRESO", card: "TARJETA", cardTotal: "Tarjeta de crédito",
+    typeError: "Elige gasto, ingreso o tarjeta.",
     description: "Descripción", descPlaceholder: "Ej.: Luz",
     amount: "Valor", date: "Fecha", repeat: "Repetición",
     repNone: "No repetir", repMonthly: "Repetir cada mes", repInstallments: "Pagar en cuotas",
@@ -121,6 +121,9 @@ function loadSettings() {
       if (I18N[saved.lang]) settings.lang = saved.lang;
       if (saved.mode === "dark" || saved.mode === "light") settings.mode = saved.mode;
       if (saved.color === "pink" || saved.color === "blue" || saved.color === "none") settings.color = saved.color;
+      const day = Number(saved.cardDay);
+      if (day >= 1 && day <= 31) settings.cardDay = Math.floor(day);
+      if (saved.cardNext === false) settings.cardNext = false;
     }
   } catch {}
 }
@@ -157,6 +160,8 @@ function applyLanguage() {
   setText("lblType", t("type"));
   setText("expenseButton", t("expense"));
   setText("incomeButton", t("income"));
+  setText("cardButton", t("card"));
+  setText("lblCard", t("cardTotal"));
   setText("typeError", t("typeError"));
   setText("lblDescription", t("description"));
   setText("lblAmount", t("amount"));
@@ -187,6 +192,7 @@ function applyLanguage() {
   repeat.options[2].textContent = t("repInstallments");
 
   document.getElementById("languageSelect").value = settings.lang;
+  applyCardSettings();
 }
 
 /* ---------- UTILITÁRIOS ---------- */
@@ -247,6 +253,27 @@ function getMonthTransactions() {
   const result = [];
 
   transactions.forEach(tx => {
+    if (tx.type === "card" && settings.cardDay > 0) {
+      const base = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1, 12);
+      const lastDay = new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+      const due = dateString(new Date(base.getFullYear(), base.getMonth(), Math.min(settings.cardDay, lastDay), 12));
+      const src = addMonths(base, -cardOffset());
+      const srcKey = monthKey(src);
+
+      if (tx.repeat === "monthly") {
+        if (srcKey < tx.date.substring(0, 7)) return;
+        result.push({
+          ...tx,
+          date: due,
+          originalId: tx.id,
+          paid: (tx.paidMonths || []).includes(selectedMonth)
+        });
+      } else if (tx.date.substring(0, 7) === srcKey) {
+        result.push({ ...tx, date: due, originalId: tx.id });
+      }
+      return;
+    }
+
     if (tx.repeat === "monthly") {
       if (selectedMonth < tx.date.substring(0, 7)) return;
 
@@ -297,7 +324,7 @@ function render() {
     const received = tx.type === "income" && tx.date <= dateString(new Date());
 
     if (tx.type === "income" && received) div.classList.add("received");
-    if (tx.type === "expense" && tx.paid) div.classList.add("done");
+    if ((tx.type === "expense" || tx.type === "card") && tx.paid) div.classList.add("done");
 
     const name = document.createElement("div");
     name.className = "tx-name";
@@ -318,7 +345,7 @@ function render() {
 
     const value = document.createElement("div");
     value.className = "tx-value";
-    value.textContent = (tx.type === "expense" ? "- " : "+ ") + money(tx.amount);
+    value.textContent = (tx.type === "income" ? "+ " : "- ") + money(tx.amount);
 
     div.append(left, value);
     div.addEventListener("click", () => transactionOptions(tx));
@@ -348,7 +375,9 @@ function updateSummary(items) {
       let index = 0;
 
       while (occurrence <= end) {
-        const key = monthKey(occurrence);
+        const key = (tx.type === "card" && settings.cardDay > 0)
+          ? monthKey(addMonths(occurrence, cardOffset()))
+          : monthKey(occurrence);
 
         if (tx.type === "income") {
           wallet += tx.amount;
@@ -361,9 +390,12 @@ function updateSummary(items) {
       }
     } else {
       if (tx.type === "income" && tx.date <= today) wallet += tx.amount;
-      if (tx.type === "expense" && tx.paid) wallet -= tx.amount;
+      if ((tx.type === "expense" || tx.type === "card") && tx.paid) wallet -= tx.amount;
     }
   });
+
+  const cardTotal = items.filter(tx => tx.type === "card" && !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
+  document.getElementById("cardTotal").textContent = money(cardTotal);
 
   document.getElementById("totalExpenses").textContent = money(total);
   document.getElementById("remaining").textContent = money(remaining);
@@ -475,7 +507,7 @@ function transactionOptions(tx) {
 
   const { overlay, menu } = showModal(tx.description, money(tx.amount));
 
-  if (tx.type === "expense") {
+  if (tx.type === "expense" || tx.type === "card") {
     addModalButton(menu, tx.paid ? t("markPending") : t("markPaid"), () => {
       const original = transactions.find(item => item.id === tx.originalId);
       if (!original) return;
@@ -579,11 +611,13 @@ function setType(type) {
   selectedType = type;
   document.getElementById("expenseButton").classList.toggle("selected", type === "expense");
   document.getElementById("incomeButton").classList.toggle("selected", type === "income");
+  document.getElementById("cardButton").classList.toggle("selected", type === "card");
   document.getElementById("typeError").hidden = true;
 }
 
 document.getElementById("expenseButton").addEventListener("click", () => setType("expense"));
 document.getElementById("incomeButton").addEventListener("click", () => setType("income"));
+document.getElementById("cardButton").addEventListener("click", () => setType("card"));
 
 /* ---------- CAMPO DE VALOR (estilo banco: os números entram pela direita) ---------- */
 const amountInput = document.getElementById("amount");
@@ -804,7 +838,7 @@ function mergeTransactions(incoming) {
   incoming.forEach(raw => {
     if (!raw || typeof raw !== "object") return;
     if (typeof raw.description !== "string" || typeof raw.date !== "string") return;
-    if (raw.type !== "expense" && raw.type !== "income") return;
+    if (raw.type !== "expense" && raw.type !== "income" && raw.type !== "card") return;
     if (!(Number(raw.amount) > 0)) return;
 
     const tx = { ...raw, amount: Number(raw.amount) };
@@ -1160,6 +1194,52 @@ document.getElementById("scanFile").addEventListener("change", event => {
   const file = event.target.files && event.target.files[0];
   event.target.value = "";
   if (file) scanReceipt(file);
+});
+
+/* ---------- CARTÃO: DIA DE VENCIMENTO ---------- */
+function cardOffset() { return settings.cardNext ? 1 : 0; }
+
+Object.assign(I18N.pt, {
+  cardSet: "Cartão de crédito", cardDayPh: "Dia do vencimento (1 a 31)",
+  cardNextBtn: "Mês seguinte", cardSameBtn: "Mesmo mês",
+  cardSetInfo: "As compras no cartão de um mês caem juntas no dia do vencimento. Vazio = usa a data de cada compra."
+});
+Object.assign(I18N.en, {
+  cardSet: "Credit card", cardDayPh: "Due day (1 to 31)",
+  cardNextBtn: "Next month", cardSameBtn: "Same month",
+  cardSetInfo: "Card purchases of a month are due together on the due day. Empty = uses each purchase date."
+});
+Object.assign(I18N.es, {
+  cardSet: "Tarjeta de crédito", cardDayPh: "Día de vencimiento (1 a 31)",
+  cardNextBtn: "Mes siguiente", cardSameBtn: "Mismo mes",
+  cardSetInfo: "Las compras con tarjeta de un mes vencen juntas el día de vencimiento. Vacío = usa la fecha de cada compra."
+});
+
+function applyCardSettings() {
+  setText("lblCardSet", t("cardSet"));
+  setText("cardNextBtn", t("cardNextBtn"));
+  setText("cardSameBtn", t("cardSameBtn"));
+  setText("cardSetInfo", t("cardSetInfo"));
+  const input = document.getElementById("cardDayInput");
+  input.placeholder = t("cardDayPh");
+  input.value = settings.cardDay > 0 ? settings.cardDay : "";
+  document.getElementById("cardNextBtn").classList.toggle("active", settings.cardNext);
+  document.getElementById("cardSameBtn").classList.toggle("active", !settings.cardNext);
+}
+
+document.getElementById("cardDayInput").addEventListener("change", event => {
+  const day = Math.floor(Number(event.target.value));
+  settings.cardDay = day >= 1 && day <= 31 ? day : 0;
+  saveSettings();
+  applyCardSettings();
+  render();
+});
+
+document.getElementById("cardNextBtn").addEventListener("click", () => {
+  settings.cardNext = true; saveSettings(); applyCardSettings(); render();
+});
+document.getElementById("cardSameBtn").addEventListener("click", () => {
+  settings.cardNext = false; saveSettings(); applyCardSettings(); render();
 });
 
 /* ---------- INICIAR ---------- */
