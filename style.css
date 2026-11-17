@@ -228,7 +228,6 @@ main { padding: 12px; padding-bottom: 190px; }
 .resumo strong { font-size: 16px; }
 
 .wallet {
-  grid-column: 1 / -1;
   border-top: 1px solid rgba(255,255,255,.25);
   padding-top: 10px;
 }
@@ -441,3 +440,13 @@ main { padding: 12px; padding-bottom: 190px; }
 .scan-overlay[hidden] { display: none !important; }
 
 .scan-overlay .action-menu p { margin: 8px 0 0; line-height: 1.4; }
+
+/* CARTÃO DE CRÉDITO */
+.cardbox strong { color: #d9b8ff; }
+.tx.card { background: #f1e8ff; border-left-color: #b48be6; }
+.tx.card.done { background: #d9f5df; border-left-color: #20a34a; }
+.tx.card .tx-value { color: #7a45c2; }
+.card-choice { color: #6b34b3; border-color: #cbb0ee; background: #f1e8ff; }
+.card-choice.selected { color: #fff; background: #6b34b3; border-color: #6b34b3; }
+.type-buttons { gap: 8px; }
+.type-choice { padding-left: 4px; padding-right: 4px; font-size: 13px; }
