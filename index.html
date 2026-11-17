@@ -94,4 +94,63 @@
     </form>
   </div>
 
-  <div id="settingsOverlay" class="ac
+  <div id="settingsOverlay" class="action-overlay" hidden>
+    <div class="action-menu settings-menu">
+      <button type="button" id="closeSettings" class="close-x" aria-label="Fechar">&#10005;</button>
+      <h2 id="settingsTitle">Configurações</h2>
+
+      <label id="lblLanguage">Idioma</label>
+      <select id="languageSelect">
+        <option value="pt">Português</option>
+        <option value="en">English</option>
+        <option value="es">Español</option>
+      </select>
+
+      <label id="lblMode">Modo</label>
+      <div class="choice-row">
+        <button type="button" class="choice" data-mode="light" id="modeLight">Claro</button>
+        <button type="button" class="choice" data-mode="dark" id="modeDark">Escuro</button>
+      </div>
+
+      <label id="lblColor">Cor do aplicativo</label>
+      <div class="choice-row">
+        <button type="button" class="choice" data-color="blue" id="colorBlue">Azul</button>
+        <button type="button" class="choice" data-color="pink" id="colorPink">Rosa</button>
+      </div>
+
+      <label id="lblCardSet">Cartão de crédito</label>
+      <input type="number" id="cardDayInput" inputmode="numeric" min="1" max="31" placeholder="">
+      <div class="choice-row" style="margin-top:8px">
+        <button type="button" class="choice" id="cardNextBtn">Mês seguinte</button>
+        <button type="button" class="choice" id="cardSameBtn">Mesmo mês</button>
+      </div>
+      <p id="cardSetInfo" class="backup-info"></p>
+
+      <label id="lblBackup">Backup</label>
+      <button type="button" id="exportButton">Exportar backup</button>
+      <button type="button" id="importButton">Importar backup</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <p id="backupInfo" class="backup-info"></p>
+    </div>
+  </div>
+
+  <input type="file" id="scanFile" accept="image/*" capture="environment" hidden>
+
+  <div id="scanOverlay" class="scan-overlay" hidden>
+    <div class="action-menu">
+      <h2 id="scanTitle">Lendo a nota</h2>
+      <p id="scanStatus"></p>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+  <!-- PWA: registra o service worker (permite instalar e abrir sem internet) -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
