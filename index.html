@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Minhas despesas</title>
+  <title>Despesa</title>
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#10243b">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Despesas">
+  <meta name="apple-mobile-web-app-title" content="Despesa">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topo">
-    <h1 id="appTitle">Minhas despesas</h1>
+    <h1 id="appTitle">Despesa</h1>
     <div class="topo-botoes">
       <button id="scanButton" aria-label="Ler nota com a câmera">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
@@ -30,6 +30,27 @@
     <strong id="monthLabel"></strong>
     <button id="nextMonth">&#8250;</button>
   </nav>
+
+  <section class="charts" id="charts">
+    <button type="button" id="chartsToggle" class="charts-toggle" aria-expanded="false">
+      <span id="chartsToggleText">Gráficos</span><span id="chartsArrow">&#9662;</span>
+    </button>
+    <div id="chartsBody" hidden>
+      <div class="choice-row charts-tabs">
+        <button type="button" class="choice active" id="tabMonth">Mês</button>
+        <button type="button" class="choice" id="tab6">6 meses</button>
+      </div>
+      <div id="chartMonth"></div>
+      <div id="chart6" hidden>
+        <div class="chart-range">
+          <button type="button" id="rangePrev" aria-label="Mês anterior">&#8249;</button>
+          <span id="rangeLabel"></span>
+          <button type="button" id="rangeNext" aria-label="Próximo mês">&#8250;</button>
+        </div>
+        <div id="chart6Svg"></div>
+      </div>
+    </div>
+  </section>
 
   <div id="overdueAlert" class="alerta" hidden></div>
 
@@ -76,6 +97,11 @@
 
       <label id="lblDate">Data</label>
       <input id="dueDate" type="date" required>
+
+      <div id="categoryField">
+        <label id="lblCategory">Categoria (opcional)</label>
+        <select id="category"></select>
+      </div>
 
       <label id="lblRepeat">Repetição</label>
       <select id="repeat">
