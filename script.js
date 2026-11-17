@@ -1247,4 +1247,4 @@ loadSettings();
 applyTheme();
 applyLanguage();
 loadData();
-render();
+render(); 
