@@ -1423,7 +1423,6 @@ document.getElementById("cardNextBtn").addEventListener("click", () => {
 document.getElementById("cardSameBtn").addEventListener("click", () => {
   settings.cardNext = false; saveSettings(); applyCardSettings(); render();
 });
-
 /* ---------- GRÁFICOS E CATEGORIAS ---------- */
 const BUILTIN_CATEGORIES = [
   { key: "alimentacao", emoji: "🍽️", color: "#e8743b" },
@@ -2550,4 +2549,775 @@ function fillFilterCat(force) {
     const option = document.createElement("option");
     option.value = c.key;
     option.textContent = c.emoji + " " + categoryName(c);
-    select.ap
+    select.appendChild(option);
+  });
+
+  select.value = (filters.cat === "all" || CATEGORY_BY_KEY[filters.cat]) ? filters.cat : "all";
+  filters.cat = select.value;
+}
+
+function fillFilterStatus() {
+  const select = document.getElementById("filterStatus");
+  if (!select) return;
+  const options = [["all", "filterAllStatus"], ["paid", "filterPaid"], ["pending", "filterPending"], ["overdue", "filterOverdue"]];
+  select.innerHTML = "";
+  options.forEach(([value, key]) => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = t(key);
+    select.appendChild(option);
+  });
+  select.value = filters.status;
+}
+
+document.getElementById("searchInput").addEventListener("input", event => {
+  filters.q = event.target.value;
+  render();
+});
+
+document.getElementById("filterToggle").addEventListener("click", () => {
+  const panel = document.getElementById("filterPanel");
+  panel.hidden = !panel.hidden;
+});
+
+document.getElementById("filterCat").addEventListener("change", event => {
+  filters.cat = event.target.value;
+  render();
+});
+
+document.getElementById("filterStatus").addEventListener("change", event => {
+  filters.status = event.target.value;
+  render();
+});
+
+document.getElementById("filterClear").addEventListener("click", () => {
+  filters.q = "";
+  filters.cat = "all";
+  filters.status = "all";
+  document.getElementById("searchInput").value = "";
+  document.getElementById("filterCat").value = "all";
+  document.getElementById("filterStatus").value = "all";
+  render();
+});
+
+/* ----- orçamento por categoria ----- */
+function spentByCategory(date) {
+  const totals = {};
+  monthSpendingItems(date).forEach(tx => {
+    const key = CATEGORY_BY_KEY[tx.category] ? tx.category : "geral";
+    totals[key] = (totals[key] || 0) + tx.amount;
+  });
+  return totals;
+}
+
+function budgetRows() {
+  const spent = spentByCategory(currentDate);
+  return CATEGORIES
+    .filter(c => priv.budgets[c.key] > 0)
+    .map(c => ({ cat: c, limit: priv.budgets[c.key], spent: spent[c.key] || 0 }));
+}
+
+function updateBudgetAlert() {
+  const box = document.getElementById("budgetAlert");
+  if (!box) return;
+
+  const rows = budgetRows().filter(r => r.spent / r.limit >= 0.8);
+  box.innerHTML = "";
+  if (!rows.length) { box.hidden = true; return; }
+
+  const over = rows.some(r => r.spent >= r.limit);
+  box.className = over ? "alerta" : "alerta aviso";
+
+  const title = document.createElement("strong");
+  title.textContent = t("budgetAlertTitle");
+
+  const ul = document.createElement("ul");
+  rows.forEach(r => {
+    const li = document.createElement("li");
+    const text = r.spent >= r.limit ? t("budgetOver") : t("budgetNear");
+    li.textContent = text
+      .replace("{c}", r.cat.emoji + " " + categoryName(r.cat))
+      .replace("{p}", Math.round(r.spent / r.limit * 100))
+      .replace("{s}", money(r.spent))
+      .replace("{l}", money(r.limit));
+    ul.appendChild(li);
+  });
+
+  box.append(title, ul);
+  box.hidden = false;
+}
+
+function appendBudgets(box) {
+  const rows = budgetRows();
+  if (!rows.length) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "budget-wrap";
+
+  const title = document.createElement("strong");
+  title.textContent = t("budgetsTitle");
+  wrap.appendChild(title);
+
+  rows.forEach(r => {
+    const percent = r.spent / r.limit * 100;
+    const line = document.createElement("div");
+    line.className = "budget-row";
+
+    const label = document.createElement("div");
+    label.className = "budget-label";
+    const name = document.createElement("span");
+    name.textContent = r.cat.emoji + " " + categoryName(r.cat);
+    const value = document.createElement("span");
+    value.textContent = `${money(r.spent)} / ${money(r.limit)} (${Math.round(percent)}%)`;
+    label.append(name, value);
+
+    const bar = document.createElement("div");
+    bar.className = "budget-bar";
+    const fill = document.createElement("div");
+    fill.className = "budget-fill" + (percent >= 100 ? " over" : percent >= 80 ? " warn" : "");
+    fill.style.width = Math.min(100, percent).toFixed(1) + "%";
+    bar.appendChild(fill);
+
+    line.append(label, bar);
+    wrap.appendChild(line);
+  });
+
+  box.appendChild(wrap);
+}
+
+function openBudgetModal() {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("budgetTitle"), t("budgetHelp"));
+  const inputs = [];
+
+  CATEGORIES.forEach(c => {
+    const label = document.createElement("label");
+    label.textContent = c.emoji + " " + categoryName(c);
+    const input = document.createElement("input");
+    input.type = "text";
+    input.inputMode = "decimal";
+    input.placeholder = "0,00";
+    input.value = moneyInputText(priv.budgets[c.key]);
+    menu.append(label, input);
+    inputs.push([c.key, input]);
+  });
+
+  addModalButton(menu, t("save"), () => {
+    const budgets = {};
+    inputs.forEach(([key, input]) => {
+      const value = parseMoneyText(input.value);
+      if (value > 0) budgets[key] = value;
+    });
+    priv.budgets = budgets;
+    overlay.remove();
+    saveData();
+    render();
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+document.getElementById("budgetButton").addEventListener("click", openBudgetModal);
+
+document.getElementById("initialBalanceInput").addEventListener("change", event => {
+  priv.initialBalance = parseMoneyText(event.target.value);
+  event.target.value = moneyInputText(priv.initialBalance);
+  saveData();
+  render();
+});
+
+/* ----- cofres ----- */
+function vaultSaved(v) {
+  return v.moves.reduce((sum, m) => sum + Number(m.amount), 0);
+}
+
+function vaultsTotal() {
+  return priv.vaults.reduce((sum, v) => sum + vaultSaved(v), 0);
+}
+
+function makeField(menu, labelText, type, value, placeholder) {
+  const label = document.createElement("label");
+  label.textContent = labelText;
+  const input = document.createElement("input");
+  input.type = type;
+  if (type === "text" && placeholder === "0,00") input.inputMode = "decimal";
+  if (placeholder) input.placeholder = placeholder;
+  input.value = value || "";
+  menu.append(label, input);
+  return input;
+}
+
+function modalMessage(menu) {
+  const p = document.createElement("p");
+  p.className = "modal-error";
+  p.hidden = true;
+  menu.appendChild(p);
+  return text => { p.textContent = text || ""; p.hidden = !text; };
+}
+
+function vaultLine(v) {
+  const saved = vaultSaved(v);
+  const left = Math.max(0, v.target - saved);
+  if (saved >= v.target) return t("vaultDone");
+  if (!v.date) return "";
+  const today = new Date();
+  const end = new Date(v.date + "T12:00:00");
+  if (isNaN(end.getTime())) return "";
+  if (dateString(today) > v.date) return t("vaultLate").replace("{v}", money(left));
+  const months = Math.max(1, (end.getFullYear() - today.getFullYear()) * 12 + end.getMonth() - today.getMonth());
+  return t("vaultLeft").replace("{v}", money(left)).replace("{d}", formatDate(v.date)).replace("{m}", money(left / months));
+}
+
+function renderVaults() {
+  const list = document.getElementById("vaultList");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const text = document.getElementById("vaultsToggleText");
+  if (text) text.textContent = t("vaults") + (priv.vaults.length ? " (" + priv.vaults.length + ")" : "");
+
+  if (!priv.vaults.length) {
+    const empty = document.createElement("p");
+    empty.className = "vault-empty";
+    empty.textContent = t("vaultNone");
+    list.appendChild(empty);
+    return;
+  }
+
+  priv.vaults.forEach(v => {
+    const saved = vaultSaved(v);
+    const percent = Math.max(0, Math.min(100, saved / v.target * 100));
+
+    const row = document.createElement("div");
+    row.className = "vault-row";
+    row.addEventListener("click", () => openVaultOptions(v));
+
+    const top = document.createElement("div");
+    top.className = "vault-top";
+    const name = document.createElement("strong");
+    name.textContent = v.emoji + " " + v.name;
+    const value = document.createElement("span");
+    value.textContent = t("vaultSaved")
+      .replace("{s}", money(saved)).replace("{t}", money(v.target)).replace("{p}", Math.round(percent));
+    top.append(name, value);
+
+    const bar = document.createElement("div");
+    bar.className = "budget-bar";
+    const fill = document.createElement("div");
+    fill.className = "budget-fill" + (saved >= v.target ? "" : " vault-fill");
+    fill.style.width = percent.toFixed(1) + "%";
+    bar.appendChild(fill);
+
+    row.append(top, bar);
+    const info = vaultLine(v);
+    if (info) {
+      const small = document.createElement("small");
+      small.textContent = info;
+      row.appendChild(small);
+    }
+    list.appendChild(row);
+  });
+}
+
+function openVaultForm(vault) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  if (!vault && priv.vaults.length >= MAX_VAULTS) { alert(t("vaultMax")); return; }
+
+  const { overlay, menu } = showModal(vault ? t("vaultEditTitle") : t("vaultNewTitle"));
+  const nameInput = makeField(menu, t("vaultName"), "text", vault ? vault.name : "", "");
+  nameInput.maxLength = 30;
+  const emojiInput = makeField(menu, t("vaultEmoji"), "text", vault ? vault.emoji : "🎯", "");
+  emojiInput.maxLength = 4;
+  const targetInput = makeField(menu, t("vaultTarget"), "text", vault ? moneyInputText(vault.target) : "", "0,00");
+  const dateInput = makeField(menu, t("vaultDate"), "date", vault ? vault.date : "", "");
+  const showError = modalMessage(menu);
+
+  addModalButton(menu, t("save"), () => {
+    const name = nameInput.value.trim();
+    const target = parseMoneyText(targetInput.value);
+    if (!name || !(target > 0)) { showError(t("vaultInvalid")); return; }
+    const emoji = emojiInput.value.trim() || "🎯";
+    if (vault) {
+      vault.name = name; vault.emoji = emoji; vault.target = target; vault.date = dateInput.value || "";
+    } else {
+      priv.vaults.push({ id: crypto.randomUUID(), name, emoji, target, date: dateInput.value || "", moves: [] });
+    }
+    overlay.remove();
+    saveData();
+    render();
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function openVaultOptions(vault) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(vault.emoji + " " + vault.name);
+
+  addModalButton(menu, t("vaultDeposit"), () => { overlay.remove(); openVaultMove(vault, 1); });
+  addModalButton(menu, t("vaultWithdraw"), () => { overlay.remove(); openVaultMove(vault, -1); });
+  addModalButton(menu, t("vaultEdit"), () => { overlay.remove(); openVaultForm(vault); });
+  addModalButton(menu, t("vaultDel"), () => { overlay.remove(); confirmDeleteVault(vault); }, "delete-action");
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function openVaultMove(vault, sign) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(sign > 0 ? t("vaultDeposit") : t("vaultWithdraw"), vault.emoji + " " + vault.name);
+  const input = makeField(menu, t("vaultAmountPh"), "text", "", "0,00");
+  const showError = modalMessage(menu);
+
+  addModalButton(menu, t("save"), () => {
+    const value = parseMoneyText(input.value);
+    if (!(value > 0)) { showError(t("vaultAmountInvalid")); return; }
+    const saved = vaultSaved(vault);
+    if (sign < 0 && value > saved + 0.001) { showError(t("vaultNoBalance").replace("{v}", money(saved))); return; }
+    vault.moves.push({ id: crypto.randomUUID(), date: dateString(new Date()), amount: sign * value });
+    overlay.remove();
+    saveData();
+    render();
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function confirmDeleteVault(vault) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("vaultDelTitle"), t("vaultDelText"));
+  addModalButton(menu, t("vaultDel"), () => {
+    priv.vaults = priv.vaults.filter(v => v.id !== vault.id);
+    overlay.remove();
+    saveData();
+    render();
+  }, "delete-action");
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+document.getElementById("addVaultButton").addEventListener("click", () => openVaultForm(null));
+
+document.getElementById("vaultsToggle").addEventListener("click", () => {
+  const body = document.getElementById("vaultsBody");
+  body.hidden = !body.hidden;
+  document.getElementById("vaultsArrow").textContent = body.hidden ? "▾" : "▴";
+});
+
+/* ----- criptografia ----- */
+let cryptoKey = null;
+let cryptoSalt = null;
+let cryptoIter = PBKDF2_ITER;
+let saveQueue = Promise.resolve();
+
+function bytesToB64(bytes) {
+  let s = "";
+  const arr = new Uint8Array(bytes);
+  for (let i = 0; i < arr.length; i += 8192) s += String.fromCharCode.apply(null, arr.subarray(i, i + 8192));
+  return btoa(s);
+}
+
+function b64ToBytes(b64) {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+async function deriveKey(password, salt, iter) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", hash: "SHA-256", salt, iterations: iter },
+    base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+  );
+}
+
+async function encryptText(text, key, salt, iter) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const data = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(text));
+  return {
+    v: 1, alg: "AES-GCM", kdf: "PBKDF2-SHA256", iter,
+    salt: bytesToB64(salt), iv: bytesToB64(iv), data: bytesToB64(data)
+  };
+}
+
+async function decryptEnvelope(env, key) {
+  const plain = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: b64ToBytes(env.iv) }, key, b64ToBytes(env.data)
+  );
+  return new TextDecoder().decode(plain);
+}
+
+function hasEnvelope() {
+  try { return localStorage.getItem(CRYPTO_KEY_NAME) !== null; } catch { return false; }
+}
+
+function persistData() {
+  if (cryptoKey) {
+    const snapshot = JSON.stringify({ transactions, priv });
+    const key = cryptoKey, salt = cryptoSalt, iter = cryptoIter;
+    saveQueue = saveQueue
+      .then(() => encryptText(snapshot, key, salt, iter))
+      .then(env => { localStorage.setItem(CRYPTO_KEY_NAME, JSON.stringify(env)); })
+      .catch(err => console.error("Erro ao salvar protegido", err));
+    return;
+  }
+  if (hasEnvelope()) return; /* protegido e bloqueado: nunca grava em texto aberto */
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+  localStorage.setItem(PRIV_KEY, JSON.stringify(priv));
+}
+
+function loadDecrypted(text) {
+  const data = JSON.parse(text);
+  transactions.length = 0;
+  if (Array.isArray(data.transactions)) transactions.push(...data.transactions);
+  applyPriv(data.priv);
+}
+
+/* ----- IndexedDB para a chave do desbloqueio do celular ----- */
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("despesaKeys", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("k");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function idbRun(mode, fn) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("k", mode);
+    const req = fn(tx.objectStore("k"));
+    tx.oncomplete = () => { db.close(); resolve(req ? req.result : undefined); };
+    tx.onerror = tx.onabort = () => { db.close(); reject(tx.error); };
+  });
+}
+
+const idbPut = (key, value) => idbRun("readwrite", s => s.put(value, key));
+const idbGet = key => idbRun("readonly", s => s.get(key));
+const idbDelete = key => idbRun("readwrite", s => s.delete(key));
+
+function shortcutId() {
+  try { return localStorage.getItem(SHORTCUT_KEY); } catch { return null; }
+}
+
+function shortcutSupported() {
+  return !!(window.PublicKeyCredential && navigator.credentials && window.indexedDB);
+}
+
+async function enableShortcut() {
+  if (!cryptoKey) return;
+  try {
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: "Despesa" },
+        user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "despesa", displayName: "Despesa" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60000
+      }
+    });
+    if (!cred) throw new Error("sem credencial");
+    await idbPut("key", cryptoKey);
+    localStorage.setItem(SHORTCUT_KEY, bytesToB64(cred.rawId));
+    alert(t("shortcutDone"));
+  } catch (err) {
+    console.error(err);
+    alert(t("shortcutFail"));
+  }
+  updateProtectUI();
+}
+
+async function removeShortcut(silent) {
+  try { localStorage.removeItem(SHORTCUT_KEY); } catch {}
+  try { await idbDelete("key"); } catch {}
+  if (!silent) alert(t("shortcutOffDone"));
+  updateProtectUI();
+}
+
+/* ----- tela de bloqueio ----- */
+let lockEl = null;
+let hiddenAt = 0;
+
+function showLockScreen() {
+  if (lockEl) return;
+  document.querySelectorAll(".action-overlay:not(#settingsOverlay)").forEach(o => o.remove());
+  document.getElementById("settingsOverlay").hidden = true;
+
+  lockEl = document.createElement("div");
+  lockEl.className = "lock-screen";
+
+  const box = document.createElement("div");
+  box.className = "lock-box";
+
+  const title = document.createElement("h2");
+  title.textContent = "🔒 " + t("lockTitle");
+  const text = document.createElement("p");
+  text.textContent = t("lockText");
+
+  const input = document.createElement("input");
+  input.type = "password";
+  input.autocomplete = "current-password";
+  input.placeholder = t("protectPw");
+
+  const error = document.createElement("p");
+  error.className = "modal-error";
+  error.hidden = true;
+
+  const unlockBtn = document.createElement("button");
+  unlockBtn.type = "button";
+  unlockBtn.textContent = t("lockUnlock");
+
+  box.append(title, text, input, error, unlockBtn);
+
+  let deviceBtn = null;
+  if (shortcutId() && shortcutSupported()) {
+    deviceBtn = document.createElement("button");
+    deviceBtn.type = "button";
+    deviceBtn.className = "cancel-action";
+    deviceBtn.textContent = "📱 " + t("lockDevice");
+    box.appendChild(deviceBtn);
+  }
+
+  lockEl.appendChild(box);
+  document.body.appendChild(lockEl);
+
+  let busy = false;
+  const fail = message => { error.textContent = message; error.hidden = false; };
+
+  async function finish(key, salt, iter, text) {
+    cryptoKey = key; cryptoSalt = salt; cryptoIter = iter;
+    loadDecrypted(text);
+    lockEl.remove();
+    lockEl = null;
+    applyNewLabels();
+    render();
+    updateProtectUI();
+  }
+
+  async function tryPassword() {
+    if (busy) return;
+    const password = input.value;
+    if (!password) return;
+    busy = true;
+    unlockBtn.textContent = t("lockBusy");
+    try {
+      const env = JSON.parse(localStorage.getItem(CRYPTO_KEY_NAME));
+      const salt = b64ToBytes(env.salt);
+      const iter = env.iter || PBKDF2_ITER;
+      const key = await deriveKey(password, salt, iter);
+      let text;
+      try { text = await decryptEnvelope(env, key); } catch { fail(t("lockWrong")); return; }
+      await finish(key, salt, iter, text);
+    } catch (err) {
+      console.error(err);
+      fail(t("lockWrong"));
+    } finally {
+      busy = false;
+      if (unlockBtn.isConnected) unlockBtn.textContent = t("lockUnlock");
+    }
+  }
+
+  async function tryDevice() {
+    if (busy) return;
+    busy = true;
+    try {
+      await navigator.credentials.get({
+        publicKey: {
+          challenge: crypto.getRandomValues(new Uint8Array(32)),
+          allowCredentials: [{ type: "public-key", id: b64ToBytes(shortcutId()) }],
+          userVerification: "required",
+          timeout: 60000
+        }
+      });
+      const key = await idbGet("key");
+      if (!key) throw new Error("sem chave");
+      const env = JSON.parse(localStorage.getItem(CRYPTO_KEY_NAME));
+      let text;
+      try { text = await decryptEnvelope(env, key); }
+      catch { await removeShortcut(true); throw new Error("chave antiga"); }
+      await finish(key, b64ToBytes(env.salt), env.iter || PBKDF2_ITER, text);
+    } catch (err) {
+      console.error(err);
+      fail(t("lockWrong"));
+    } finally {
+      busy = false;
+    }
+  }
+
+  unlockBtn.addEventListener("click", tryPassword);
+  input.addEventListener("keydown", e => { if (e.key === "Enter") tryPassword(); });
+  if (deviceBtn) deviceBtn.addEventListener("click", tryDevice);
+  setTimeout(() => input.focus(), 50);
+}
+
+async function lockNow() {
+  if (!cryptoKey || lockEl) return;
+  try { await saveQueue; } catch {}
+  cryptoKey = null;
+  transactions.length = 0;
+  applyPriv(null);
+  render();
+  showLockScreen();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+  } else if (cryptoKey && hiddenAt && Date.now() - hiddenAt > RELOCK_MS) {
+    lockNow();
+  }
+});
+
+/* ----- janelas de senha ----- */
+function askPasswordModal(title, text) {
+  return new Promise((resolve, reject) => {
+    const { overlay, menu } = showModal(title, text);
+    const input = document.createElement("input");
+    input.type = "password";
+    input.placeholder = t("protectPw");
+    menu.appendChild(input);
+
+    const submit = () => { if (!input.value) return; overlay.remove(); resolve(input.value); };
+    input.addEventListener("keydown", e => { if (e.key === "Enter") submit(); });
+    addModalButton(menu, t("ok"), submit);
+    addModalButton(menu, t("cancel"), () => { overlay.remove(); reject(new Error("cancelado")); }, "cancel-action");
+    setTimeout(() => input.focus(), 50);
+  });
+}
+
+function askNewPassword() {
+  const { overlay, menu } = showModal(t("protectPwTitle"), t("protectPwText"));
+  const one = document.createElement("input");
+  one.type = "password"; one.autocomplete = "new-password"; one.placeholder = t("protectPw");
+  const two = document.createElement("input");
+  two.type = "password"; two.autocomplete = "new-password"; two.placeholder = t("protectPw2");
+  menu.append(one, two);
+  const showError = modalMessage(menu);
+
+  addModalButton(menu, t("protectActivate"), async () => {
+    if (one.value.length < 6) { showError(t("protectPwShort")); return; }
+    if (one.value !== two.value) { showError(t("protectPwDiff")); return; }
+    const password = one.value;
+    overlay.remove();
+    await enableProtection(password);
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function startEnableProtection() {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("protectWarnTitle"), t("protectWarn"));
+  addModalButton(menu, t("protectBackupNow"), () => { exportBackup(); });
+  addModalButton(menu, t("protectContinue"), () => { overlay.remove(); askNewPassword(); });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+async function enableProtection(password) {
+  let wrote = false;
+  try {
+    await saveQueue;
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const key = await deriveKey(password, salt, PBKDF2_ITER);
+    const payload = JSON.stringify({ transactions, priv });
+    const env = await encryptText(payload, key, salt, PBKDF2_ITER);
+    if ((await decryptEnvelope(env, key)) !== payload) throw new Error("verificacao");
+
+    localStorage.setItem(CRYPTO_KEY_NAME, JSON.stringify(env));
+    wrote = true;
+    const back = JSON.parse(localStorage.getItem(CRYPTO_KEY_NAME));
+    if ((await decryptEnvelope(back, key)) !== payload) throw new Error("verificacao");
+
+    cryptoKey = key; cryptoSalt = salt; cryptoIter = PBKDF2_ITER;
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(PRIV_KEY);
+    updateProtectUI();
+    alert(t("protectDone"));
+  } catch (err) {
+    console.error(err);
+    if (wrote && !cryptoKey) { try { localStorage.removeItem(CRYPTO_KEY_NAME); } catch {} }
+    alert(t("protectFail"));
+  }
+}
+
+function confirmDisableProtection() {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("protectOffTitle"), t("protectOffText"));
+  addModalButton(menu, t("protectOff"), async () => {
+    overlay.remove();
+    await disableProtection();
+  }, "delete-action");
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+async function disableProtection() {
+  try {
+    await saveQueue;
+    const txText = JSON.stringify(transactions);
+    const privText = JSON.stringify(priv);
+    localStorage.setItem(STORAGE_KEY, txText);
+    localStorage.setItem(PRIV_KEY, privText);
+    if (localStorage.getItem(STORAGE_KEY) !== txText || localStorage.getItem(PRIV_KEY) !== privText) {
+      throw new Error("verificacao");
+    }
+    localStorage.removeItem(CRYPTO_KEY_NAME);
+    cryptoKey = null; cryptoSalt = null;
+    await removeShortcut(true);
+    updateProtectUI();
+    alert(t("protectOffDone"));
+  } catch (err) {
+    console.error(err);
+    alert(t("protectOffFail"));
+  }
+}
+
+function updateProtectUI() {
+  const on = !!cryptoKey;
+  const info = document.getElementById("protectInfo");
+  const button = document.getElementById("protectButton");
+  const sc = document.getElementById("shortcutButton");
+  if (info) info.textContent = on ? t("protectOnInfo") : t("protectOffInfo");
+  if (button) button.textContent = on ? t("protectOff") : t("protectOn");
+  if (sc) {
+    sc.hidden = !(on && shortcutSupported());
+    sc.textContent = shortcutId() ? t("shortcutOff") : t("shortcutOn");
+  }
+}
+
+document.getElementById("protectButton").addEventListener("click", () => {
+  if (cryptoKey) confirmDisableProtection(); else startEnableProtection();
+});
+
+document.getElementById("shortcutButton").addEventListener("click", () => {
+  if (shortcutId()) removeShortcut(false); else enableShortcut();
+});
+
+/* ----- textos novos ----- */
+function applyNewLabels() {
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const search = document.getElementById("searchInput");
+  if (search) search.placeholder = t("searchPh");
+  set("filterToggle", "⚙️ " + t("filters"));
+  set("filterClear", t("filterClear"));
+  fillFilterCat(true);
+  fillFilterStatus();
+  set("addVaultButton", t("vaultNew"));
+  set("lblBudget", t("budgetSet"));
+  set("budgetButton", t("budgetBtn"));
+  set("lblInitial", t("initialLabel"));
+  set("initialHelp", t("initialHelp"));
+  set("lblProtect", t("protectSet"));
+  const initial = document.getElementById("initialBalanceInput");
+  if (initial) initial.value = moneyInputText(priv.initialBalance);
+  updateProtectUI();
+  renderVaults();
+}
+
+/* ---------- INICIAR ---------- */
+loadSettings();
+rebuildCategories();
+applyTheme();
+applyLanguage();
+if (hasEnvelope()) {
+  showLockScreen();
+} else {
+  loadData();
+  applyNewLabels();
+  render();
+}
