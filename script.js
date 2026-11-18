@@ -198,10 +198,12 @@ function applyLanguage() {
   document.getElementById("languageSelect").value = settings.lang;
   applyCardSettings();
   applyChartLabels();
+  applyNewLabels();
 }
 
 /* ---------- UTILITÁRIOS ---------- */
 function loadData() {
+  loadPriv();
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) {
     try {
@@ -214,7 +216,7 @@ function loadData() {
 }
 
 function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+  persistData();
 }
 
 function money(value) {
@@ -270,6 +272,7 @@ function getMonthTransactions(forDate = currentDate) {
         result.push({
           ...tx,
           date: due,
+          amount: amountForMonth(tx, selectedMonth),
           originalId: tx.id,
           paid: (tx.paidMonths || []).includes(selectedMonth)
         });
@@ -293,6 +296,7 @@ function getMonthTransactions(forDate = currentDate) {
       result.push({
         ...tx,
         date: dateString(occurrence),
+        amount: amountForMonth(tx, key),
         originalId: tx.id,
         paid: (tx.paidMonths || []).includes(key)
       });
@@ -314,12 +318,13 @@ function render() {
   });
   monthLabel.textContent = monthName.charAt(0).toUpperCase() + monthName.slice(1);
 
-  const items = getMonthTransactions();
+  const allItems = getMonthTransactions();
+  const items = applyFilters(allItems);
   list.innerHTML = "";
 
   if (items.length === 0) {
     list.innerHTML = '<div class="empty"></div>';
-    list.firstChild.textContent = t("empty");
+    list.firstChild.textContent = t(filtersActive() && allItems.length ? "emptyFilter" : "empty");
   }
 
   items.forEach(tx => {
@@ -368,11 +373,14 @@ function render() {
     list.appendChild(div);
   });
 
-  updateSummary(items);
+  updateSummary(allItems);
   updateOverdueAlert();
   updateSoonAlert();
+  updateBudgetAlert();
+  fillFilterCat();
   updateBackupAlert();
   updateInvoiceBar();
+  renderVaults();
   renderCharts();
 }
 
@@ -382,7 +390,7 @@ function updateSummary(items) {
   const total = expenses.reduce((sum, tx) => sum + tx.amount, 0);
   const remaining = expenses.filter(tx => !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
 
-  let wallet = 0;
+  let wallet = Number(priv.initialBalance) || 0;
   const today = dateString(new Date());
 
   transactions.forEach(tx => {
@@ -400,9 +408,9 @@ function updateSummary(items) {
           : monthKey(occurrence);
 
         if (tx.type === "income") {
-          wallet += tx.amount;
+          wallet += amountForMonth(tx, key);
         } else if ((tx.paidMonths || []).includes(key)) {
-          wallet -= tx.amount;
+          wallet -= amountForMonth(tx, key);
         }
 
         index++;
@@ -413,6 +421,8 @@ function updateSummary(items) {
       if ((tx.type === "expense" || tx.type === "card") && tx.paid) wallet -= tx.amount;
     }
   });
+
+  wallet -= vaultsTotal();
 
   const cardTotal = items.filter(tx => tx.type === "card" && !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
   document.getElementById("cardTotal").textContent = money(cardTotal);
@@ -446,7 +456,7 @@ function getOverdueExpenses() {
         const day = dateString(occurrence);
 
         if (day < today && !(tx.paidMonths || []).includes(key)) {
-          overdue.push({ description: tx.description, amount: tx.amount, date: day });
+          overdue.push({ description: tx.description, amount: amountForMonth(tx, key), date: day });
         }
 
         index++;
@@ -639,7 +649,8 @@ function editTransaction(tx) {
   const isSeries = group.length > 1;
   const oldParts = installmentParts(original);
   const oldBase = isSeries && oldParts ? oldParts.base : original.description;
-  const oldAmount = original.amount;
+  const isMonthly = original.repeat === "monthly";
+  const oldAmount = isMonthly ? tx.amount : original.amount;
   const oldCategory = CATEGORY_BY_KEY[original.category] ? original.category : "geral";
 
   const { overlay, menu } = showModal(t("editTitle"), isSeries ? t("seriesNote") : t("editText"));
@@ -657,7 +668,7 @@ function editTransaction(tx) {
   editAmountInput.type = "number";
   editAmountInput.min = "0.01";
   editAmountInput.step = "0.01";
-  editAmountInput.value = original.amount;
+  editAmountInput.value = oldAmount;
 
   menu.append(descriptionLabel, descriptionInput, amountLabel, editAmountInput);
 
@@ -687,8 +698,15 @@ function editTransaction(tx) {
 
     if (!isSeries) {
       original.description = newText;
-      original.amount = newAmount;
+      if (!isMonthly) original.amount = newAmount;
       if (newCategory !== null) original.category = newCategory;
+      if (isMonthly && amountChanged) {
+        overlay.remove();
+        saveData();
+        render();
+        askMonthlyScope(original, tx, newAmount);
+        return;
+      }
     } else {
       group.forEach(item => {
         const isThis = item === original;
@@ -744,6 +762,9 @@ function showAmount() {
   const end = amountInput.value.length;
   try { amountInput.setSelectionRange(end, end); } catch {}
 }
+
+/* Substitui o comportamento normal do campo: cada número entra à direita. */
+/* (o código antigo do beforeinput foi removido; o evento input abaixo faz tudo) */
 
 /* Reserva para teclados de celular que não enviam o beforeinput: lê o que foi digitado e refaz. */
 amountInput.addEventListener("input", () => {
@@ -904,16 +925,25 @@ function txSignature(tx) {
 }
 
 async function exportBackup() {
-  const data = {
+  const payload = {
     app: "minhasDespesas",
     version: 1,
     exportedAt: new Date().toISOString(),
     settings,
-    transactions
+    transactions,
+    priv
   };
 
-  const text = JSON.stringify(data, null, 2);
-  const fileName = `minhas-despesas-backup-${dateString(new Date())}.json`;
+  let text = JSON.stringify(payload, null, 2);
+  let fileName = `minhas-despesas-backup-${dateString(new Date())}.json`;
+
+  /* Com a proteção ligada, o backup também sai criptografado com a mesma senha. */
+  if (cryptoKey) {
+    const env = await encryptText(JSON.stringify(payload), cryptoKey, cryptoSalt, cryptoIter);
+    text = JSON.stringify({ app: "minhasDespesas", encrypted: true, version: 1, exportedAt: payload.exportedAt, ...env }, null, 2);
+    fileName = `minhas-despesas-backup-protegido-${dateString(new Date())}.json`;
+  }
+
   const file = new File([text], fileName, { type: "application/json" });
 
   try {
@@ -977,10 +1007,40 @@ function mergeTransactions(incoming) {
   return { added, duplicates };
 }
 
+function applyImportedData(data) {
+  const result = mergeTransactions(data.transactions);
+
+  if (data.settings && Array.isArray(data.settings.customCategories)) {
+    data.settings.customCategories.filter(isValidCustomCategory).forEach(c => {
+      if (!settings.customCategories.some(x => x.key === c.key) && settings.customCategories.length < MAX_CUSTOM_CATEGORIES) {
+        settings.customCategories.push({ key: c.key, name: c.name.slice(0, 24), emoji: c.emoji, color: c.color });
+      }
+    });
+    saveSettings();
+    rebuildCategories();
+    applyChartLabels();
+  }
+
+  if (data.priv) {
+    const p = sanitizePriv(data.priv);
+    if (!priv.initialBalance && p.initialBalance) priv.initialBalance = p.initialBalance;
+    Object.keys(p.budgets).forEach(k => { if (!(k in priv.budgets)) priv.budgets[k] = p.budgets[k]; });
+    p.vaults.forEach(v => {
+      if (!priv.vaults.some(x => x.id === v.id) && priv.vaults.length < MAX_VAULTS) priv.vaults.push(v);
+    });
+  }
+
+  saveData();
+  render();
+  applyNewLabels();
+
+  alert(t("importDone").replace("{n}", result.added).replace("{d}", result.duplicates));
+}
+
 function importBackup(file) {
   const reader = new FileReader();
 
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       // Ignora marcas de formatação (3 crases) caso o arquivo tenha sido copiado e colado.
       const cleaned = String(reader.result)
@@ -990,29 +1050,26 @@ function importBackup(file) {
         .replace(/\s*[\x60]{3}$/, "")
         .trim();
 
-      const data = JSON.parse(cleaned);
+      let data = JSON.parse(cleaned);
+
+      if (data && data.encrypted) {
+        const password = await askPasswordModal(t("backupPwTitle"), t("backupPwText"));
+        try {
+          const key = await deriveKey(password, b64ToBytes(data.salt), data.iter || PBKDF2_ITER);
+          data = JSON.parse(await decryptEnvelope(data, key));
+        } catch {
+          throw new Error("senha");
+        }
+      }
+
       if (!data || data.app !== "minhasDespesas" || !Array.isArray(data.transactions)) {
         throw new Error("formato");
       }
 
-      const result = mergeTransactions(data.transactions);
-
-      if (data.settings && Array.isArray(data.settings.customCategories)) {
-        data.settings.customCategories.filter(isValidCustomCategory).forEach(c => {
-          if (!settings.customCategories.some(x => x.key === c.key) && settings.customCategories.length < MAX_CUSTOM_CATEGORIES) {
-            settings.customCategories.push({ key: c.key, name: c.name.slice(0, 24), emoji: c.emoji, color: c.color });
-          }
-        });
-        saveSettings();
-        rebuildCategories();
-        applyChartLabels();
-      }
-      saveData();
-      render();
-
-      alert(t("importDone").replace("{n}", result.added).replace("{d}", result.duplicates));
-    } catch {
-      alert(t("importError"));
+      applyImportedData(data);
+    } catch (error) {
+      if (error && error.message === "cancelado") return;
+      alert(error && error.message === "senha" ? t("lockWrong") : t("importError"));
     }
   };
 
@@ -1033,6 +1090,7 @@ document.getElementById("importFile").addEventListener("change", event => {
 });
 
 /* ---------- LEITOR DE NOTAS (câmera) ---------- */
+/* Tudo deste bloco é novo. Ele só usa funções que já existem (setType, showAmount, dateString, t). */
 Object.assign(I18N.pt, {
   scanTitle: "Lendo a nota",
   scanReading: "Lendo a nota... pode levar alguns segundos.",
@@ -1061,6 +1119,7 @@ Object.assign(I18N.es, {
   scanSeen: "Texto leído:"
 });
 
+/* PURE:START (funções de interpretação do texto lido, sem acesso à tela) */
 const SCAN_MONEY_RE = /(?<![\d.,\/-])(?:\d{1,3}(?:\.\d{3})+|\d+)[.,]\d{2}(?!\d)(?![.,]\d)/g;
 
 function scanParseMoney(text) {
@@ -1167,6 +1226,7 @@ function parseReceipt(text, todayText) {
     date: scanFindDate(lines, todayText)
   };
 }
+/* PURE:END */
 
 function scanShow(message) {
   document.getElementById("scanTitle").textContent = t("scanTitle");
@@ -1519,6 +1579,7 @@ function renderPie() {
     empty.className = "chart-empty";
     empty.textContent = t("chartEmpty");
     box.appendChild(empty);
+    appendBudgets(box);
     return;
   }
 
@@ -1575,6 +1636,7 @@ function renderPie() {
   wrap.className = "pie-wrap";
   wrap.append(svg, legend);
   box.appendChild(wrap);
+  appendBudgets(box);
 }
 
 function renderBars() {
@@ -2184,10 +2246,308 @@ async function exportCsv() {
 
 document.getElementById("exportCsvButton").addEventListener("click", exportCsv);
 
-/* ---------- INICIAR ---------- */
-loadSettings();
-rebuildCategories();
-applyTheme();
-applyLanguage();
-loadData();
-render();
+/* ---------- NOVIDADES: DADOS PRIVADOS, FILTROS, ORÇAMENTOS, COFRES E PROTEÇÃO ---------- */
+const PRIV_KEY = "minhasDespesasPriv";
+const CRYPTO_KEY_NAME = "minhasDespesasCripto";
+const SHORTCUT_KEY = "minhasDespesasAtalho";
+const PBKDF2_ITER = 200000;
+const MAX_VAULTS = 20;
+const RELOCK_MS = 60000;
+
+/* Dados novos (saldo inicial, orçamentos e cofres). As despesas continuam em "minhasDespesas". */
+const priv = { initialBalance: 0, budgets: {}, vaults: [] };
+
+Object.assign(I18N.pt, {
+  searchPh: "Buscar pelo nome...", filters: "Filtros", filterAllCats: "Todas as categorias",
+  filterAllStatus: "Todas as situações", filterPaid: "Pagas", filterPending: "Pendentes",
+  filterOverdue: "Atrasadas", filterClear: "Limpar filtros", emptyFilter: "Nada encontrado com esses filtros.",
+  budgetSet: "Orçamento por categoria", budgetBtn: "Definir orçamentos", budgetTitle: "Orçamento mensal",
+  budgetHelp: "Limite de gasto por mês em cada categoria. Deixe vazio para não ter limite.",
+  budgetAlertTitle: "Atenção aos orçamentos do mês:",
+  budgetNear: "{c}: {p}% do limite ({s} de {l})", budgetOver: "{c}: limite estourado ({s} de {l})",
+  budgetsTitle: "Orçamentos do mês",
+  initialLabel: "Saldo inicial da carteira", initialHelp: "Quanto você já tinha na carteira antes de usar o app.",
+  scopeTitle: "Alterar o valor", scopeText: "Esta conta se repete todo mês. Onde aplicar o novo valor?",
+  scopeOne: "Só neste mês", scopeFrom: "Deste mês em diante", scopeAll: "Todos os meses (inclusive anteriores)",
+  vaults: "🏦 Cofres", vaultNew: "➕ Novo cofre",
+  vaultNone: "Nenhum cofre ainda. Crie um para juntar dinheiro para um plano futuro.",
+  vaultName: "Nome do cofre", vaultEmoji: "Emoji (opcional)", vaultTarget: "Valor-alvo",
+  vaultDate: "Data-alvo (opcional)", vaultNewTitle: "Novo cofre", vaultEditTitle: "Editar cofre",
+  vaultSaved: "{s} de {t} ({p}%)", vaultDone: "🎉 Meta atingida!",
+  vaultLeft: "Faltam {v} até {d} (cerca de {m} por mês)", vaultLate: "Prazo vencido: faltam {v}",
+  vaultDeposit: "Guardar dinheiro", vaultWithdraw: "Retirar dinheiro", vaultAmountPh: "Valor",
+  vaultInvalid: "Informe um nome e um valor-alvo maiores que zero.",
+  vaultAmountInvalid: "Informe um valor válido.", vaultNoBalance: "Você só pode retirar até {v}.",
+  vaultDelTitle: "Excluir cofre?", vaultDelText: "O dinheiro guardado volta para a Carteira.",
+  vaultMax: "Limite de 20 cofres.", vaultEdit: "Editar cofre", vaultDel: "Excluir cofre",
+  protectSet: "Proteção", protectOffInfo: "Desligada. Ao ligar, seus dados ficam criptografados e o app pede uma senha ao abrir.",
+  protectOnInfo: "Ligada. Seus dados estão criptografados.",
+  protectOn: "Ativar proteção com senha", protectOff: "Desativar proteção",
+  protectWarnTitle: "Ativar proteção",
+  protectWarn: "Se você esquecer a senha, os dados NÃO podem ser recuperados. Faça um backup antes de continuar.",
+  protectBackupNow: "Exportar backup agora", protectContinue: "Continuar",
+  protectPwTitle: "Criar senha", protectPwText: "Escolha uma senha com pelo menos 6 caracteres.",
+  protectPw: "Senha", protectPw2: "Repita a senha",
+  protectPwShort: "A senha precisa ter pelo menos 6 caracteres.", protectPwDiff: "As senhas não são iguais.",
+  protectActivate: "Ativar", protectDone: "Proteção ativada. Seus dados agora estão criptografados.",
+  protectFail: "Não consegui ativar a proteção. Nada foi alterado.",
+  protectOffTitle: "Desativar proteção?", protectOffText: "Seus dados voltam a ser salvos sem criptografia.",
+  protectOffDone: "Proteção desativada.", protectOffFail: "Não consegui desativar. Seus dados continuam protegidos.",
+  lockTitle: "App bloqueado", lockText: "Digite a senha do app para abrir.", lockUnlock: "Desbloquear",
+  lockWrong: "Senha incorreta.", lockDevice: "Usar desbloqueio do celular", lockBusy: "Abrindo...",
+  shortcutOn: "Ativar desbloqueio do celular", shortcutOff: "Desativar desbloqueio do celular",
+  shortcutDone: "Desbloqueio do celular ativado.", shortcutFail: "Não consegui ativar o desbloqueio do celular neste aparelho.",
+  shortcutOffDone: "Desbloqueio do celular desativado.",
+  backupPwTitle: "Backup protegido", backupPwText: "Digite a senha usada neste backup.", ok: "OK"
+});
+Object.assign(I18N.en, {
+  searchPh: "Search by name...", filters: "Filters", filterAllCats: "All categories",
+  filterAllStatus: "All statuses", filterPaid: "Paid", filterPending: "Pending",
+  filterOverdue: "Overdue", filterClear: "Clear filters", emptyFilter: "Nothing found with these filters.",
+  budgetSet: "Budget by category", budgetBtn: "Set budgets", budgetTitle: "Monthly budget",
+  budgetHelp: "Monthly spending limit for each category. Leave empty for no limit.",
+  budgetAlertTitle: "Watch your budgets this month:",
+  budgetNear: "{c}: {p}% of the limit ({s} of {l})", budgetOver: "{c}: limit exceeded ({s} of {l})",
+  budgetsTitle: "Budgets this month",
+  initialLabel: "Starting wallet balance", initialHelp: "How much you already had in your wallet before using the app.",
+  scopeTitle: "Change the amount", scopeText: "This bill repeats every month. Where should the new amount apply?",
+  scopeOne: "Only this month", scopeFrom: "From this month on", scopeAll: "All months (including earlier ones)",
+  vaults: "🏦 Vaults", vaultNew: "➕ New vault",
+  vaultNone: "No vaults yet. Create one to save money for a future plan.",
+  vaultName: "Vault name", vaultEmoji: "Emoji (optional)", vaultTarget: "Target amount",
+  vaultDate: "Target date (optional)", vaultNewTitle: "New vault", vaultEditTitle: "Edit vault",
+  vaultSaved: "{s} of {t} ({p}%)", vaultDone: "🎉 Goal reached!",
+  vaultLeft: "{v} left until {d} (about {m} per month)", vaultLate: "Deadline passed: {v} left",
+  vaultDeposit: "Add money", vaultWithdraw: "Take money out", vaultAmountPh: "Amount",
+  vaultInvalid: "Enter a name and a target amount greater than zero.",
+  vaultAmountInvalid: "Enter a valid amount.", vaultNoBalance: "You can only take out up to {v}.",
+  vaultDelTitle: "Delete vault?", vaultDelText: "The saved money goes back to the Wallet.",
+  vaultMax: "Limit of 20 vaults.", vaultEdit: "Edit vault", vaultDel: "Delete vault",
+  protectSet: "Protection", protectOffInfo: "Off. When on, your data is encrypted and the app asks for a password on opening.",
+  protectOnInfo: "On. Your data is encrypted.",
+  protectOn: "Turn on password protection", protectOff: "Turn off protection",
+  protectWarnTitle: "Turn on protection",
+  protectWarn: "If you forget the password, your data CANNOT be recovered. Make a backup before continuing.",
+  protectBackupNow: "Export backup now", protectContinue: "Continue",
+  protectPwTitle: "Create password", protectPwText: "Choose a password with at least 6 characters.",
+  protectPw: "Password", protectPw2: "Repeat the password",
+  protectPwShort: "The password needs at least 6 characters.", protectPwDiff: "The passwords do not match.",
+  protectActivate: "Turn on", protectDone: "Protection on. Your data is now encrypted.",
+  protectFail: "Could not turn on protection. Nothing was changed.",
+  protectOffTitle: "Turn off protection?", protectOffText: "Your data goes back to being saved without encryption.",
+  protectOffDone: "Protection off.", protectOffFail: "Could not turn off. Your data is still protected.",
+  lockTitle: "App locked", lockText: "Enter the app password to open.", lockUnlock: "Unlock",
+  lockWrong: "Wrong password.", lockDevice: "Use phone unlock", lockBusy: "Opening...",
+  shortcutOn: "Turn on phone unlock", shortcutOff: "Turn off phone unlock",
+  shortcutDone: "Phone unlock on.", shortcutFail: "Could not turn on phone unlock on this device.",
+  shortcutOffDone: "Phone unlock off.",
+  backupPwTitle: "Protected backup", backupPwText: "Enter the password used for this backup.", ok: "OK"
+});
+Object.assign(I18N.es, {
+  searchPh: "Buscar por nombre...", filters: "Filtros", filterAllCats: "Todas las categorías",
+  filterAllStatus: "Todos los estados", filterPaid: "Pagados", filterPending: "Pendientes",
+  filterOverdue: "Atrasados", filterClear: "Limpiar filtros", emptyFilter: "No se encontró nada con estos filtros.",
+  budgetSet: "Presupuesto por categoría", budgetBtn: "Definir presupuestos", budgetTitle: "Presupuesto mensual",
+  budgetHelp: "Límite de gasto al mes en cada categoría. Déjalo vacío para no tener límite.",
+  budgetAlertTitle: "Atención a los presupuestos del mes:",
+  budgetNear: "{c}: {p}% del límite ({s} de {l})", budgetOver: "{c}: límite superado ({s} de {l})",
+  budgetsTitle: "Presupuestos del mes",
+  initialLabel: "Saldo inicial de la cartera", initialHelp: "Cuánto tenías en la cartera antes de usar la app.",
+  scopeTitle: "Cambiar el valor", scopeText: "Esta cuenta se repite cada mes. ¿Dónde aplicar el nuevo valor?",
+  scopeOne: "Solo este mes", scopeFrom: "Desde este mes en adelante", scopeAll: "Todos los meses (incluidos los anteriores)",
+  vaults: "🏦 Cajas", vaultNew: "➕ Nueva caja",
+  vaultNone: "Aún no hay cajas. Crea una para juntar dinero para un plan futuro.",
+  vaultName: "Nombre de la caja", vaultEmoji: "Emoji (opcional)", vaultTarget: "Valor objetivo",
+  vaultDate: "Fecha objetivo (opcional)", vaultNewTitle: "Nueva caja", vaultEditTitle: "Editar caja",
+  vaultSaved: "{s} de {t} ({p}%)", vaultDone: "🎉 ¡Meta alcanzada!",
+  vaultLeft: "Faltan {v} hasta {d} (unos {m} al mes)", vaultLate: "Plazo vencido: faltan {v}",
+  vaultDeposit: "Guardar dinero", vaultWithdraw: "Retirar dinero", vaultAmountPh: "Valor",
+  vaultInvalid: "Escribe un nombre y un valor objetivo mayor que cero.",
+  vaultAmountInvalid: "Escribe un valor válido.", vaultNoBalance: "Solo puedes retirar hasta {v}.",
+  vaultDelTitle: "¿Eliminar caja?", vaultDelText: "El dinero guardado vuelve a la Cartera.",
+  vaultMax: "Límite de 20 cajas.", vaultEdit: "Editar caja", vaultDel: "Eliminar caja",
+  protectSet: "Protección", protectOffInfo: "Desactivada. Al activarla, tus datos se cifran y la app pide una contraseña al abrir.",
+  protectOnInfo: "Activada. Tus datos están cifrados.",
+  protectOn: "Activar protección con contraseña", protectOff: "Desactivar protección",
+  protectWarnTitle: "Activar protección",
+  protectWarn: "Si olvidas la contraseña, los datos NO se pueden recuperar. Haz una copia antes de continuar.",
+  protectBackupNow: "Exportar copia ahora", protectContinue: "Continuar",
+  protectPwTitle: "Crear contraseña", protectPwText: "Elige una contraseña de al menos 6 caracteres.",
+  protectPw: "Contraseña", protectPw2: "Repite la contraseña",
+  protectPwShort: "La contraseña necesita al menos 6 caracteres.", protectPwDiff: "Las contraseñas no coinciden.",
+  protectActivate: "Activar", protectDone: "Protección activada. Tus datos ahora están cifrados.",
+  protectFail: "No pude activar la protección. No se cambió nada.",
+  protectOffTitle: "¿Desactivar protección?", protectOffText: "Tus datos vuelven a guardarse sin cifrado.",
+  protectOffDone: "Protección desactivada.", protectOffFail: "No pude desactivar. Tus datos siguen protegidos.",
+  lockTitle: "App bloqueada", lockText: "Escribe la contraseña de la app para abrir.", lockUnlock: "Desbloquear",
+  lockWrong: "Contraseña incorrecta.", lockDevice: "Usar desbloqueo del móvil", lockBusy: "Abriendo...",
+  shortcutOn: "Activar desbloqueo del móvil", shortcutOff: "Desactivar desbloqueo del móvil",
+  shortcutDone: "Desbloqueo del móvil activado.", shortcutFail: "No pude activar el desbloqueo del móvil en este aparato.",
+  shortcutOffDone: "Desbloqueo del móvil desactivado.",
+  backupPwTitle: "Copia protegida", backupPwText: "Escribe la contraseña usada en esta copia.", ok: "OK"
+});
+
+/* ----- ajudas ----- */
+function parseMoneyText(value) {
+  let s = String(value || "").trim().replace(/[^\d.,-]/g, "");
+  if (!s) return 0;
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  const n = Number(s);
+  return isFinite(n) ? n : 0;
+}
+
+function moneyInputText(n) {
+  return n ? String(n).replace(".", ",") : "";
+}
+
+function normalizeText(text) {
+  return String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+function sanitizePriv(raw) {
+  const out = { initialBalance: 0, budgets: {}, vaults: [] };
+  if (!raw || typeof raw !== "object") return out;
+
+  const start = Number(raw.initialBalance);
+  if (isFinite(start)) out.initialBalance = start;
+
+  if (raw.budgets && typeof raw.budgets === "object") {
+    Object.keys(raw.budgets).forEach(key => {
+      const value = Number(raw.budgets[key]);
+      if (isFinite(value) && value > 0) out.budgets[key] = value;
+    });
+  }
+
+  if (Array.isArray(raw.vaults)) {
+    raw.vaults.forEach(v => {
+      if (!v || typeof v.id !== "string" || typeof v.name !== "string" || !(Number(v.target) > 0)) return;
+      out.vaults.push({
+        id: v.id,
+        name: v.name.slice(0, 30),
+        emoji: typeof v.emoji === "string" && v.emoji ? v.emoji : "🎯",
+        target: Number(v.target),
+        date: typeof v.date === "string" ? v.date : "",
+        moves: Array.isArray(v.moves)
+          ? v.moves
+              .filter(m => m && isFinite(Number(m.amount)) && Number(m.amount) !== 0)
+              .map(m => ({ id: String(m.id || crypto.randomUUID()), date: String(m.date || ""), amount: Number(m.amount) }))
+          : []
+      });
+    });
+    out.vaults = out.vaults.slice(0, MAX_VAULTS);
+  }
+  return out;
+}
+
+function applyPriv(raw) {
+  const p = sanitizePriv(raw);
+  priv.initialBalance = p.initialBalance;
+  priv.budgets = p.budgets;
+  priv.vaults = p.vaults;
+}
+
+function loadPriv() {
+  try { applyPriv(JSON.parse(localStorage.getItem(PRIV_KEY))); } catch { applyPriv(null); }
+}
+
+/* ----- valor de contas mensais que mudaram de preço ----- */
+function amountForMonth(tx, key) {
+  let amount = Number(tx.amount);
+  if (Array.isArray(tx.changes)) {
+    tx.changes.forEach(change => {
+      if (change && typeof change.from === "string" && change.from <= key) amount = Number(change.amount);
+    });
+  }
+  return amount;
+}
+
+function setMonthlyChange(original, key, amount) {
+  const changes = (Array.isArray(original.changes) ? original.changes : []).filter(c => c.from !== key);
+  changes.push({ from: key, amount });
+  changes.sort((a, b) => a.from.localeCompare(b.from));
+  original.changes = changes;
+}
+
+function askMonthlyScope(original, tx, newAmount) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const date = new Date(tx.date + "T12:00:00");
+  const key = monthKey(date);
+  const nextKey = monthKey(addMonths(date, 1));
+
+  const { overlay, menu } = showModal(t("scopeTitle"), t("scopeText"));
+
+  addModalButton(menu, t("scopeOne"), () => {
+    const before = amountForMonth(original, key);
+    const hasNext = Array.isArray(original.changes) && original.changes.some(c => c.from === nextKey);
+    setMonthlyChange(original, key, newAmount);
+    if (!hasNext) setMonthlyChange(original, nextKey, before);
+    overlay.remove();
+    saveData();
+    render();
+  });
+
+  addModalButton(menu, t("scopeFrom"), () => {
+    original.changes = (Array.isArray(original.changes) ? original.changes : []).filter(c => c.from <= key);
+    setMonthlyChange(original, key, newAmount);
+    overlay.remove();
+    saveData();
+    render();
+  });
+
+  addModalButton(menu, t("scopeAll"), () => {
+    original.amount = newAmount;
+    delete original.changes;
+    overlay.remove();
+    saveData();
+    render();
+  });
+
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+/* ----- busca e filtros ----- */
+const filters = { q: "", cat: "all", status: "all" };
+
+function filtersActive() {
+  return filters.q.trim() !== "" || filters.cat !== "all" || filters.status !== "all";
+}
+
+function applyFilters(items) {
+  const today = dateString(new Date());
+  const query = normalizeText(filters.q.trim());
+
+  return items.filter(tx => {
+    if (query && !normalizeText(tx.description).includes(query)) return false;
+
+    if (filters.cat !== "all") {
+      if (tx.type === "income") return false;
+      const key = CATEGORY_BY_KEY[tx.category] ? tx.category : "geral";
+      if (key !== filters.cat) return false;
+    }
+
+    if (filters.status !== "all") {
+      if (tx.type === "income") return false;
+      if (filters.status === "paid" && !tx.paid) return false;
+      if (filters.status === "pending" && tx.paid) return false;
+      if (filters.status === "overdue" && !(!tx.paid && tx.date < today)) return false;
+    }
+    return true;
+  });
+}
+
+function fillFilterCat(force) {
+  const select = document.getElementById("filterCat");
+  if (!select) return;
+  if (!force && select.options.length === CATEGORIES.length + 1) return;
+  select.innerHTML = "";
+
+  const all = document.createElement("option");
+  all.value = "all";
+  all.textContent = t("filterAllCats");
+  select.appendChild(all);
+
+  CATEGORIES.forEach(c => {
+    const option = document.createElement("option");
+    option.value = c.key;
+    option.textContent = c.emoji + " " + categoryName(c);
+    select.ap
