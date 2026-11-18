@@ -595,4 +595,68 @@ main { padding: 12px; padding-bottom: 190px; }
 
 .invoice-bar strong { display: block; font-size: 15px; margin-top: 2px; }
 .invoice-bar button { padding: 9px 12px; background: #6b34b3; white-space: nowrap; }
-.invoice-bar.paga { background: #e7f6ea; border-color: #a9d9b4; color: #1c6b34; } 
+.invoice-bar.paga { background: #e7f6ea; border-color: #a9d9b4; color: #1c6b34; }
+
+
+/* FILTROS */
+.filterbar { padding: 8px 12px 0; }
+.filter-line { display: flex; gap: 8px; }
+.filter-line input {
+  flex: 1; min-width: 0; padding: 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); color: var(--text);
+}
+.filter-line button, .filter-panel button {
+  padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); white-space: nowrap;
+}
+.filter-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.filter-panel[hidden] { display: none; }
+.filter-panel select {
+  width: 100%; padding: 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--panel); color: var(--text);
+}
+
+/* ORÇAMENTOS */
+.budget-wrap { margin-top: 14px; }
+.budget-row { margin-top: 10px; }
+.budget-label { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin-bottom: 4px; }
+.budget-bar { height: 10px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.budget-fill { height: 100%; background: var(--green); border-radius: 6px; }
+.budget-fill.warn { background: #e0a21b; }
+.budget-fill.over { background: var(--red); }
+.budget-fill.vault-fill { background: var(--blue); }
+
+/* COFRES */
+.vaults { margin: 8px 12px 0; }
+.vaults #vaultsBody { padding: 8px 0 0; }
+.vaults #vaultsBody[hidden] { display: none; }
+.vault-row {
+  padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--panel); color: var(--text); cursor: pointer;
+}
+.vault-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 6px; flex-wrap: wrap; }
+.vault-row small { display: block; margin-top: 6px; color: var(--muted); }
+.vault-empty { font-size: 13px; color: var(--muted); margin: 4px 0 8px; }
+#addVaultButton { width: 100%; padding: 10px; border-radius: 9px; }
+
+/* AVISO DENTRO DE JANELAS */
+.action-menu p.modal-error { color: #c62836; font-weight: bold; margin: 8px 0 0; }
+
+/* TELA DE BLOQUEIO */
+.lock-screen {
+  position: fixed; inset: 0; z-index: 20000; display: flex;
+  align-items: center; justify-content: center; background: var(--bg);
+}
+.lock-box {
+  width: 300px; max-width: 90%; padding: 22px; border-radius: 16px;
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  box-shadow: 0 8px 35px rgba(0,0,0,.25);
+}
+.lock-box h2 { font-size: 18px; margin: 0 0 8px; }
+.lock-box p { font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+.lock-box input {
+  width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+}
+.lock-box p.modal-error { color: #c62836; font-weight: bold; margin: 8px 0 0; }
+.lock-box button { width: 100%; margin-top: 10px; padding: 12px; border-radius: 9px; }
