@@ -55,6 +55,29 @@
   <div id="overdueAlert" class="alerta" hidden></div>
   <div id="soonAlert" class="alerta aviso" hidden></div>
   <div id="backupAlert" class="alerta aviso" hidden></div>
+  <div id="budgetAlert" class="alerta aviso" hidden></div>
+
+  <div class="filterbar">
+    <div class="filter-line">
+      <input id="searchInput" type="search" placeholder="Buscar pelo nome..." autocomplete="off">
+      <button type="button" id="filterToggle">⚙️ Filtros</button>
+    </div>
+    <div id="filterPanel" class="filter-panel" hidden>
+      <select id="filterCat"></select>
+      <select id="filterStatus"></select>
+      <button type="button" id="filterClear">Limpar filtros</button>
+    </div>
+  </div>
+
+  <section class="vaults" id="vaults">
+    <button type="button" id="vaultsToggle" class="charts-toggle" aria-expanded="false">
+      <span id="vaultsToggleText">🏦 Cofres</span><span id="vaultsArrow">&#9662;</span>
+    </button>
+    <div id="vaultsBody" hidden>
+      <div id="vaultList"></div>
+      <button type="button" id="addVaultButton">➕ Novo cofre</button>
+    </div>
+  </section>
 
   <main>
     <div id="invoiceBar" class="invoice-bar" hidden></div>
@@ -155,9 +178,21 @@
       </div>
       <p id="cardSetInfo" class="backup-info"></p>
 
+      <label id="lblInitial">Saldo inicial da carteira</label>
+      <input type="text" id="initialBalanceInput" inputmode="decimal" placeholder="0,00">
+      <p id="initialHelp" class="backup-info"></p>
+
+      <label id="lblBudget">Orçamento por categoria</label>
+      <button type="button" id="budgetButton">Definir orçamentos</button>
+
       <label id="lblCustomCats">Categorias personalizadas</label>
       <div id="customCatList"></div>
       <button type="button" id="addCatButton">➕ Nova categoria</button>
+
+      <label id="lblProtect">Proteção</label>
+      <p id="protectInfo" class="backup-info"></p>
+      <button type="button" id="protectButton">Ativar proteção com senha</button>
+      <button type="button" id="shortcutButton" hidden>Ativar desbloqueio do celular</button>
 
       <label id="lblBackup">Backup</label>
       <button type="button" id="exportButton">Exportar backup</button>
@@ -187,4 +222,4 @@
     }
   </script>
 </body>
-</html> 
+</html>
