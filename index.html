@@ -53,8 +53,11 @@
   </section>
 
   <div id="overdueAlert" class="alerta" hidden></div>
+  <div id="soonAlert" class="alerta aviso" hidden></div>
+  <div id="backupAlert" class="alerta aviso" hidden></div>
 
   <main>
+    <div id="invoiceBar" class="invoice-bar" hidden></div>
     <div id="transactions"></div>
   </main>
 
@@ -152,10 +155,15 @@
       </div>
       <p id="cardSetInfo" class="backup-info"></p>
 
+      <label id="lblCustomCats">Categorias personalizadas</label>
+      <div id="customCatList"></div>
+      <button type="button" id="addCatButton">➕ Nova categoria</button>
+
       <label id="lblBackup">Backup</label>
       <button type="button" id="exportButton">Exportar backup</button>
       <button type="button" id="importButton">Importar backup</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden>
+      <button type="button" id="exportCsvButton">Exportar planilha (CSV)</button>
       <p id="backupInfo" class="backup-info"></p>
     </div>
   </div>
