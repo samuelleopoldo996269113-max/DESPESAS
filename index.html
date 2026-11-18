@@ -52,6 +52,20 @@
     </div>
   </section>
 
+  <section class="charts" id="compareBox">
+    <button type="button" id="compareToggle" class="charts-toggle">
+      <span id="compareToggleText">📈 Comparação com o mês anterior</span><span id="compareArrow">&#9662;</span>
+    </button>
+    <div id="compareBody" class="extra-body" hidden></div>
+  </section>
+
+  <section class="charts" id="yearBox">
+    <button type="button" id="yearToggle" class="charts-toggle">
+      <span id="yearToggleText">📅 Resumo anual</span><span id="yearArrow">&#9662;</span>
+    </button>
+    <div id="yearBody" class="extra-body" hidden></div>
+  </section>
+
   <div id="overdueAlert" class="alerta" hidden></div>
   <div id="soonAlert" class="alerta aviso" hidden></div>
   <div id="backupAlert" class="alerta aviso" hidden></div>
@@ -80,24 +94,28 @@
   </section>
 
   <main>
-    <div id="invoiceBar" class="invoice-bar" hidden></div>
+    <div id="sortBar" class="sortbar">
+      <label id="lblSort" for="sortSelect">Ordenar</label>
+      <select id="sortSelect"></select>
+    </div>
+    <div id="invoiceBar" hidden></div>
     <div id="transactions"></div>
   </main>
 
   <footer class="resumo">
-    <div>
+    <div class="f-total">
       <span id="lblTotal">Total a pagar</span>
       <strong id="totalExpenses">R$ 0,00</strong>
     </div>
-    <div>
+    <div class="f-remaining">
       <span id="lblRemaining">Saldo a pagar</span>
       <strong id="remaining">R$ 0,00</strong>
     </div>
-    <div class="wallet">
+    <div class="wallet f-wallet">
       <span id="lblWallet">Carteira</span>
       <strong id="wallet">R$ 0,00</strong>
     </div>
-    <div class="wallet cardbox">
+    <div class="wallet cardbox f-card">
       <span id="lblCard">Cartão de crédito</span>
       <strong id="cardTotal">R$ 0,00</strong>
     </div>
@@ -127,6 +145,16 @@
       <div id="categoryField">
         <label id="lblCategory">Categoria (opcional)</label>
         <select id="category"></select>
+      </div>
+
+      <div id="cardField" hidden>
+        <label id="lblCardField">Cartão</label>
+        <select id="cardSelect"></select>
+      </div>
+
+      <div id="noteField">
+        <label id="lblNote">Observação (opcional)</label>
+        <input id="note" maxlength="200" autocomplete="off">
       </div>
 
       <label id="lblRepeat">Repetição</label>
@@ -170,12 +198,16 @@
         <button type="button" class="choice" data-color="pink" id="colorPink">Rosa</button>
       </div>
 
-      <label id="lblCardSet">Cartão de crédito</label>
-      <input type="number" id="cardDayInput" inputmode="numeric" min="1" max="31" placeholder="">
-      <div class="choice-row" style="margin-top:8px">
-        <button type="button" class="choice" id="cardNextBtn">Mês seguinte</button>
-        <button type="button" class="choice" id="cardSameBtn">Mesmo mês</button>
-      </div>
+      <label id="lblView">Exibição</label>
+      <p id="viewHelp" class="backup-info"></p>
+      <div id="viewList"></div>
+
+      <label id="lblSoon">Avisar vencimentos com antecedência</label>
+      <div id="soonDaysRow" class="choice-row"></div>
+
+      <label id="lblCardSet">Cartões de crédito</label>
+      <div id="cardList"></div>
+      <button type="button" id="addCardButton">➕ Novo cartão</button>
       <p id="cardSetInfo" class="backup-info"></p>
 
       <label id="lblInitial">Saldo inicial da carteira</label>
@@ -213,6 +245,8 @@
   </div>
 
   <script src="script.js"></script>
+  <script src="script2.js"></script>
+  <script src="script3.js"></script>
   <!-- PWA: registra o service worker (permite instalar e abrir sem internet) -->
   <script>
     if ("serviceWorker" in navigator) {
