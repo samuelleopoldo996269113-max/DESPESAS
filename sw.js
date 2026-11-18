@@ -1,9 +1,11 @@
-const CACHE = "minhas-despesas-v11";
+const CACHE = "minhas-despesas-v13";
 const FILES = [
   "./",
   "./index.html",
   "./style.css",
   "./script.js",
+  "./script2.js",
+  "./script3.js",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
