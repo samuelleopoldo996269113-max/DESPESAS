@@ -595,4 +595,4 @@ main { padding: 12px; padding-bottom: 190px; }
 
 .invoice-bar strong { display: block; font-size: 15px; margin-top: 2px; }
 .invoice-bar button { padding: 9px 12px; background: #6b34b3; white-space: nowrap; }
-.invoice-bar.paga { background: #e7f6ea; border-color: #a9d9b4; color: #1c6b34; }
+.invoice-bar.paga { background: #e7f6ea; border-color: #a9d9b4; color: #1c6b34; } 
