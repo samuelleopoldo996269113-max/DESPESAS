@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Despesa</title>
+  <title>1° Passo</title>
   <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#10243b">
+  <meta name="theme-color" content="#14161b">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Despesa">
+  <meta name="apple-mobile-web-app-title" content="1° Passo">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topo">
-    <h1 id="appTitle">Despesa</h1>
+    <h1 id="appTitle">1° Passo</h1>
     <div class="topo-botoes">
       <button id="scanButton" aria-label="Ler nota com a câmera">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
@@ -186,6 +186,9 @@
         <option value="es">Español</option>
       </select>
 
+      <label id="lblCurrency">Moeda</label>
+      <select id="currencySelect"></select>
+
       <label id="lblMode">Modo</label>
       <div class="choice-row">
         <button type="button" class="choice" data-mode="light" id="modeLight">Claro</button>
@@ -232,6 +235,21 @@
       <input type="file" id="importFile" accept=".json,application/json" hidden>
       <button type="button" id="exportCsvButton">Exportar planilha (CSV)</button>
       <p id="backupInfo" class="backup-info"></p>
+
+      <label id="lblSnap">Cópias internas</label>
+      <p id="snapHelp" class="backup-info"></p>
+      <button type="button" id="snapNowButton">Criar cópia agora</button>
+      <div id="snapList"></div>
+
+      <label id="lblWipe">Apagar dados</label>
+      <p id="wipeHelp" class="backup-info"></p>
+      <button type="button" id="wipeButton" class="delete-action">Apagar todos os meus dados</button>
+
+      <label id="lblAbout">Sobre o app</label>
+      <p id="aboutVersion" class="backup-info"></p>
+      <button type="button" id="termsButton">Termos de uso</button>
+      <button type="button" id="privacyButton">Política de privacidade</button>
+      <button type="button" id="contactButton">Fale conosco</button>
     </div>
   </div>
 
