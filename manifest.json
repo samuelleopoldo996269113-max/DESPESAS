@@ -1,13 +1,15 @@
 {
-  "name": "Despesa",
-  "short_name": "Despesa",
-  "description": "Controle de despesas e entradas por mês.",
+  "name": "1° Passo",
+  "short_name": "1° Passo",
+  "description": "Controle de despesas simples: contas, cartões e vencimentos.",
+  "lang": "pt-BR",
+  "categories": ["finance", "productivity"],
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#10243b",
-  "theme_color": "#10243b",
+  "background_color": "#14161b",
+  "theme_color": "#14161b",
   "icons": [
     {
       "src": "icon-192.png",
@@ -28,4 +30,4 @@
       "purpose": "maskable"
     }
   ]
-} 
+}
