@@ -1,4 +1,4 @@
-const CACHE = "minhas-despesas-v13";
+const CACHE = "minhas-despesas-v14";
 const FILES = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const FILES = [
   "./script.js",
   "./script2.js",
   "./script3.js",
+  "./privacidade.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
