@@ -715,3 +715,15 @@ body.hide-footer main { padding-bottom: 30px; }
 .tx.swipe-right { box-shadow: inset 6px 0 0 #20a34a; transition: none; }
 .tx.swipe-left { box-shadow: inset -6px 0 0 #8c93a0; transition: none; }
 .tx-note { font-style: italic; }
+
+/* ---------- 1° PASSO: LEGAL, CÓPIAS INTERNAS E ATRASADAS ---------- */
+body:not(.hide-overdueHighlight) .tx.overdue { background: #fbc6ca; border-left-color: #d85b65; }
+body:not(.hide-overdueHighlight) .tx.overdue .status { color: #a3262f; font-weight: bold; }
+
+.action-menu .legal-text { text-align: left; }
+.action-menu .legal-text p { margin: 0 0 10px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.action-menu .legal-text h3 { margin: 14px 0 6px; font-size: 14px; }
+
+.snap-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 12px; }
+.action-menu .snap-row button { width: auto; margin: 0; padding: 7px 12px; flex: none; }
+.action-menu button:disabled { opacity: .45; }
