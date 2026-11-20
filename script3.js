@@ -5,7 +5,7 @@ Object.assign(I18N.pt, {
   v_totalPay: "Total a pagar", v_totalRemaining: "Saldo a pagar", v_wallet: "Carteira", v_cardTotal: "Cartão de crédito e faturas",
   v_charts: "Gráficos", v_filters: "Busca e filtros", v_vaults: "Cofres", v_scan: "Câmera (ler nota)",
   v_alertOverdue: "Contas atrasadas", v_alertSoon: "Contas vencendo em breve", v_alertBudget: "Orçamento do mês", v_alertBackup: "Lembrete de backup",
-  v_compare: "Comparação com o mês anterior", v_yearly: "Resumo anual", v_notes: "Observações", v_sort: "Ordenar a lista", v_swipe: "Deslizar para pagar",
+  v_compare: "Comparação com o mês anterior", v_yearly: "Resumo anual", v_notes: "Observações", v_sort: "Ordenar a lista", v_swipe: "Deslizar para pagar", v_merge: "Juntar movimentações (segurar e arrastar)",
   soonLabel: "Avisar vencimentos com antecedência", soonDay1: "1 dia", soonDay2: "2 dias", soonDay3: "3 dias",
   soonTitle1: "Vencem hoje ou amanhã:",
   cardSet: "Cartões de crédito", cardNamePh: "Nome do cartão", cardDayPh: "Dia do vencimento (1 a 31)",
@@ -26,7 +26,7 @@ Object.assign(I18N.en, {
   v_totalPay: "Total to pay", v_totalRemaining: "Balance to pay", v_wallet: "Wallet", v_cardTotal: "Credit card and bills",
   v_charts: "Charts", v_filters: "Search and filters", v_vaults: "Vaults", v_scan: "Camera (read receipt)",
   v_alertOverdue: "Overdue bills", v_alertSoon: "Bills due soon", v_alertBudget: "Monthly budget", v_alertBackup: "Backup reminder",
-  v_compare: "Compare with last month", v_yearly: "Yearly summary", v_notes: "Notes", v_sort: "Sort the list", v_swipe: "Swipe to pay",
+  v_compare: "Compare with last month", v_yearly: "Yearly summary", v_notes: "Notes", v_sort: "Sort the list", v_swipe: "Swipe to pay", v_merge: "Join entries (hold and drag)",
   soonLabel: "Warn about due dates in advance", soonDay1: "1 day", soonDay2: "2 days", soonDay3: "3 days",
   soonTitle1: "Due today or tomorrow:",
   cardSet: "Credit cards", cardNamePh: "Card name", cardDayPh: "Due day (1 to 31)",
@@ -47,7 +47,7 @@ Object.assign(I18N.es, {
   v_totalPay: "Total a pagar", v_totalRemaining: "Saldo a pagar", v_wallet: "Cartera", v_cardTotal: "Tarjeta de crédito y facturas",
   v_charts: "Gráficos", v_filters: "Búsqueda y filtros", v_vaults: "Cajas", v_scan: "Cámara (leer recibo)",
   v_alertOverdue: "Cuentas atrasadas", v_alertSoon: "Cuentas por vencer", v_alertBudget: "Presupuesto del mes", v_alertBackup: "Recordatorio de copia",
-  v_compare: "Comparación con el mes anterior", v_yearly: "Resumen anual", v_notes: "Observaciones", v_sort: "Ordenar la lista", v_swipe: "Deslizar para pagar",
+  v_compare: "Comparación con el mes anterior", v_yearly: "Resumen anual", v_notes: "Observaciones", v_sort: "Ordenar la lista", v_swipe: "Deslizar para pagar", v_merge: "Juntar movimientos (mantener y arrastrar)",
   soonLabel: "Avisar vencimientos con antelación", soonDay1: "1 día", soonDay2: "2 días", soonDay3: "3 días",
   soonTitle1: "Vencen hoy o mañana:",
   cardSet: "Tarjetas de crédito", cardNamePh: "Nombre de la tarjeta", cardDayPh: "Día de vencimiento (1 a 31)",
@@ -67,7 +67,7 @@ Object.assign(I18N.es, {
 const VIEW_GROUPS = [
   ["viewMain", ["totalPay", "totalRemaining", "wallet", "cardTotal", "charts", "filters", "vaults", "scan"]],
   ["viewAlerts", ["alertOverdue", "alertSoon", "alertBudget", "alertBackup"]],
-  ["viewExtras", ["compare", "yearly", "notes", "sort", "swipe", "overdueHighlight"]]
+  ["viewExtras", ["compare", "yearly", "notes", "sort", "swipe", "overdueHighlight", "merge"]]
 ];
 
 function applyView() {
@@ -337,6 +337,7 @@ function attachSwipe(el, tx) {
 
   el.addEventListener("pointermove", event => {
     if (!active || event.pointerId !== pointer) return;
+    if (dragState) { active = false; el.style.transform = ""; el.classList.remove("swipe-right", "swipe-left"); return; }
     const mx = event.clientX - startX;
     const my = event.clientY - startY;
 
@@ -1037,6 +1038,326 @@ function openWalletModal() {
   box.addEventListener("click", openWalletModal);
   box.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWalletModal(); } });
 })();
+
+/* ----- juntar movimentações: segure, arraste uma em cima da outra e solte ----- */
+Object.assign(I18N.pt, {
+  mergeCount: "🔗 {n} juntas", mergeDone: "Juntadas.", mergeTitle: "🔗 Movimentações juntas",
+  mergeResult: "Resultado: {v}", mergeIn: "Entradas {v}", mergeOut: "Saídas {v}",
+  mergePaidOf: "{p} de {n} pagas", mergeSplit: "✂️", mergeSplitAll: "✂️ Separar todas",
+  mergePayAll: "Marcar todas como pagas", mergeSplitDone: "Separada.", mergeSplitAllDone: "Separadas.",
+  mergeTapHint: "Toque em uma para abrir. ✂️ separa do grupo."
+});
+Object.assign(I18N.en, {
+  mergeCount: "🔗 {n} joined", mergeDone: "Joined.", mergeTitle: "🔗 Joined entries",
+  mergeResult: "Result: {v}", mergeIn: "Income {v}", mergeOut: "Out {v}",
+  mergePaidOf: "{p} of {n} paid", mergeSplit: "✂️", mergeSplitAll: "✂️ Split all",
+  mergePayAll: "Mark all as paid", mergeSplitDone: "Split.", mergeSplitAllDone: "Split.",
+  mergeTapHint: "Tap one to open it. ✂️ takes it out of the group."
+});
+Object.assign(I18N.es, {
+  mergeCount: "🔗 {n} juntas", mergeDone: "Juntadas.", mergeTitle: "🔗 Movimientos juntos",
+  mergeResult: "Resultado: {v}", mergeIn: "Entradas {v}", mergeOut: "Salidas {v}",
+  mergePaidOf: "{p} de {n} pagadas", mergeSplit: "✂️", mergeSplitAll: "✂️ Separar todas",
+  mergePayAll: "Marcar todas como pagadas", mergeSplitDone: "Separada.", mergeSplitAllDone: "Separadas.",
+  mergeTapHint: "Toca una para abrirla. ✂️ la saca del grupo."
+});
+
+/* Junta é só visual: os totais, a carteira e os avisos continuam contando cada item. */
+function mergesOfMonth() {
+  const key = monthKey(currentDate);
+  return (priv.merges || []).filter(m => m.month === key);
+}
+
+/* Troca os itens juntos por uma linha só, no lugar do primeiro deles. */
+function mergeDisplayList(items) {
+  if (!settings.view.merge) return items.map(tx => ({ tx }));
+  const groupOf = new Map();
+  mergesOfMonth().forEach(m => m.ids.forEach(id => groupOf.set(id, m)));
+  const byId = new Map(items.map(tx => [tx.originalId, tx]));
+  const used = new Set();
+  const out = [];
+
+  items.forEach(tx => {
+    const m = groupOf.get(tx.originalId);
+    if (!m) { out.push({ tx }); return; }
+    if (used.has(m.id)) return;
+    const members = m.ids.map(id => byId.get(id)).filter(Boolean);
+    if (members.length < 2) { out.push({ tx }); return; }
+    used.add(m.id);
+    out.push({ group: { merge: m, members } });
+  });
+  return out;
+}
+
+function signedMoney(value) {
+  const v = Math.round(value * 100) / 100;
+  return (v > 0 ? "+ " : v < 0 ? "- " : "") + money(Math.abs(v));
+}
+
+function mergeNumbers(members) {
+  const inSum = members.filter(tx => tx.type === "income").reduce((s, tx) => s + tx.amount, 0);
+  const outSum = members.filter(tx => tx.type !== "income").reduce((s, tx) => s + tx.amount, 0);
+  const pays = members.filter(tx => tx.type !== "income");
+  return { inSum, outSum, net: Math.round((inSum - outSum) * 100) / 100, pays, paid: pays.filter(tx => tx.paid).length };
+}
+
+function mergedRow(group) {
+  const { members, merge } = group;
+  const n = mergeNumbers(members);
+  const div = document.createElement("div");
+  div.className = "tx merged " + (n.net > 0 ? "income" : n.net < 0 ? "expense" : "zero");
+  if (n.net < 0 && n.pays.length && n.paid === n.pays.length) div.classList.add("done");
+  if (n.net > 0) div.classList.add("received");
+
+  const name = document.createElement("div");
+  name.className = "tx-name";
+  name.textContent = members.map(tx => tx.description).join(" + ");
+
+  const info = document.createElement("div");
+  info.className = "tx-date";
+  info.textContent = t("mergeCount").replace("{n}", members.length);
+
+  const left = document.createElement("div");
+  left.append(name, info);
+
+  if (n.inSum > 0 && n.outSum > 0) {
+    const detail = document.createElement("div");
+    detail.className = "status";
+    detail.textContent = t("mergeIn").replace("{v}", money(n.inSum)) + " · " + t("mergeOut").replace("{v}", money(n.outSum));
+    left.appendChild(detail);
+  }
+  if (n.pays.length) {
+    const status = document.createElement("div");
+    status.className = "status";
+    status.textContent = t("mergePaidOf").replace("{p}", n.paid).replace("{n}", n.pays.length);
+    left.appendChild(status);
+  }
+
+  const value = document.createElement("div");
+  value.className = "tx-value";
+  value.textContent = signedMoney(n.net);
+
+  div.append(left, value);
+  div.addEventListener("click", () => { if (swipeBlock) return; mergedOptions(group); });
+  attachDrag(div, merge.ids);
+  return div;
+}
+
+function mergedOptions(group) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  if (!document.getElementById("settingsOverlay").hidden) return;
+
+  const { members, merge } = group;
+  const n = mergeNumbers(members);
+  const { overlay, menu } = showModal(t("mergeTitle"), t("mergeResult").replace("{v}", signedMoney(n.net)));
+
+  const hint = document.createElement("p");
+  hint.textContent = t("mergeTapHint");
+  menu.appendChild(hint);
+
+  members.forEach(tx => {
+    const line = document.createElement("div");
+    line.className = "merge-item";
+
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "merge-open " + tx.type + (tx.paid ? " done" : "");
+    const status = tx.type === "income"
+      ? (tx.date <= dateString(new Date()) ? t("received") : t("planned"))
+      : (tx.paid ? t("paid") : t("pending"));
+    open.textContent = `${tx.description}\n${tx.type === "income" ? "+ " : "- "}${money(tx.amount)} · ${status}`;
+    open.addEventListener("click", () => { overlay.remove(); transactionOptions(tx); });
+
+    const split = document.createElement("button");
+    split.type = "button";
+    split.className = "merge-split";
+    split.textContent = t("mergeSplit");
+    split.setAttribute("aria-label", "Separar");
+    split.addEventListener("click", () => { overlay.remove(); splitMerge(merge, [tx.originalId]); });
+
+    line.append(open, split);
+    menu.appendChild(line);
+  });
+
+  const unpaid = n.pays.filter(tx => !tx.paid);
+  if (unpaid.length) {
+    addModalButton(menu, t("mergePayAll"), () => {
+      overlay.remove();
+      unpaid.forEach(tx => setPaid(tx, true));
+    });
+  }
+  addModalButton(menu, t("mergeSplitAll"), () => { overlay.remove(); splitMerge(merge, null); });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function copyMerges() {
+  return (priv.merges || []).map(m => ({ ...m, ids: [...m.ids] }));
+}
+
+/* Junta os dois lados num grupo só (grupo + grupo vira um grupo maior, sem limite). */
+function joinItems(dragIds, targetIds) {
+  const month = monthKey(currentDate);
+  const before = copyMerges();
+  const all = new Set([...targetIds, ...dragIds]);
+  const touching = priv.merges.filter(m => m.month === month && m.ids.some(id => all.has(id)));
+  touching.forEach(m => m.ids.forEach(id => all.add(id)));
+  priv.merges = priv.merges.filter(m => !touching.includes(m));
+  priv.merges.push({ id: crypto.randomUUID(), month, ids: [...all] });
+  saveData();
+  render();
+  showUndoToast(t("mergeDone"), () => { priv.merges = before; saveData(); render(); });
+}
+
+/* ids = null separa o grupo inteiro; senão tira só esses itens. */
+function splitMerge(merge, ids) {
+  const before = copyMerges();
+  const current = priv.merges.find(m => m.id === merge.id);
+  if (!current) return;
+  if (ids) current.ids = current.ids.filter(id => !ids.includes(id));
+  if (!ids || current.ids.length < 2) priv.merges = priv.merges.filter(m => m !== current);
+  saveData();
+  render();
+  showUndoToast(t(ids ? "mergeSplitDone" : "mergeSplitAllDone"), () => { priv.merges = before; saveData(); render(); });
+}
+
+/* ----- arrastar ----- */
+let dragState = null;
+const DRAG_HOLD_MS = 450;
+
+function dragBlocked() {
+  return !document.getElementById("settingsOverlay").hidden ||
+    !document.getElementById("txOverlay").hidden ||
+    !!document.querySelector(".action-overlay:not(#settingsOverlay)");
+}
+
+function attachDrag(el, ids) {
+  el.dataset.ids = JSON.stringify(ids);
+  el.addEventListener("contextmenu", event => event.preventDefault());
+
+  let timer = null, sx = 0, sy = 0;
+  const stopWait = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  const wait = (x, y) => {
+    stopWait();
+    sx = x; sy = y;
+    timer = setTimeout(() => { timer = null; startDrag(el, ids, sx, sy); }, DRAG_HOLD_MS);
+  };
+  const movedAway = (x, y) => Math.hypot(x - sx, y - sy) > 8;
+
+  /* toque (celular) */
+  el.addEventListener("touchstart", event => {
+    if (event.touches.length !== 1 || dragState) { stopWait(); return; }
+    wait(event.touches[0].clientX, event.touches[0].clientY);
+  }, { passive: true });
+
+  el.addEventListener("touchmove", event => {
+    const p = event.touches[0];
+    if (dragState && dragState.el === el) {
+      event.preventDefault();
+      moveDrag(p.clientX, p.clientY);
+    } else if (timer && movedAway(p.clientX, p.clientY)) {
+      stopWait();
+    }
+  }, { passive: false });
+
+  el.addEventListener("touchend", event => {
+    stopWait();
+    if (dragState && dragState.el === el) { event.preventDefault(); endDrag(); }
+  });
+  el.addEventListener("touchcancel", () => { stopWait(); if (dragState && dragState.el === el) cancelDrag(); });
+
+  /* mouse (computador) */
+  el.addEventListener("mousedown", event => {
+    if (event.button !== 0 || dragState) return;
+    wait(event.clientX, event.clientY);
+    const onMove = e => {
+      if (dragState && dragState.el === el) { e.preventDefault(); moveDrag(e.clientX, e.clientY); }
+      else if (timer && movedAway(e.clientX, e.clientY)) stopWait();
+    };
+    const onUp = () => {
+      stopWait();
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      if (dragState && dragState.el === el) endDrag();
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
+
+function startDrag(el, ids, x, y) {
+  if (dragState || dragBlocked() || !el.isConnected) return;
+  const rect = el.getBoundingClientRect();
+  const ghost = el.cloneNode(true);
+  ghost.classList.add("drag-ghost");
+  ghost.style.width = rect.width + "px";
+  ghost.style.left = rect.left + "px";
+  ghost.style.top = rect.top + "px";
+  document.body.appendChild(ghost);
+
+  el.classList.add("drag-source");
+  document.body.classList.add("dragging");
+  try { if (navigator.vibrate) navigator.vibrate(30); } catch {}
+
+  dragState = { el, ids, ghost, offX: x - rect.left, offY: y - rect.top, x, y, target: null, raf: 0 };
+  dragState.raf = requestAnimationFrame(dragAutoScroll);
+}
+
+function moveDrag(x, y) {
+  const s = dragState;
+  if (!s) return;
+  s.x = x; s.y = y;
+  s.ghost.style.left = (x - s.offX) + "px";
+  s.ghost.style.top = (y - s.offY) + "px";
+
+  const under = document.elementFromPoint(x, y);
+  let row = under && under.closest ? under.closest("#transactions .tx") : null;
+  if (row === s.el) row = null;
+  if (row !== s.target) {
+    if (s.target) s.target.classList.remove("drop-target");
+    if (row) row.classList.add("drop-target");
+    s.target = row;
+  }
+}
+
+/* Rola a tela sozinho quando o dedo chega perto do topo ou do rodapé. */
+function dragAutoScroll() {
+  const s = dragState;
+  if (!s) return;
+  const footer = document.querySelector(".resumo");
+  const bottom = footer ? footer.getBoundingClientRect().top : window.innerHeight;
+  let step = 0;
+  if (s.y < 90) step = -10;
+  else if (s.y > bottom - 50) step = 10;
+  if (step) {
+    window.scrollBy(0, step);
+    moveDrag(s.x, s.y);
+  }
+  s.raf = requestAnimationFrame(dragAutoScroll);
+}
+
+function cleanupDrag() {
+  const s = dragState;
+  if (!s) return null;
+  cancelAnimationFrame(s.raf);
+  s.ghost.remove();
+  s.el.classList.remove("drag-source");
+  if (s.target) s.target.classList.remove("drop-target");
+  document.body.classList.remove("dragging");
+  dragState = null;
+  swipeBlock = true;
+  setTimeout(() => { swipeBlock = false; }, 400);
+  return s;
+}
+
+function cancelDrag() { cleanupDrag(); }
+
+function endDrag() {
+  const s = cleanupDrag();
+  if (!s || !s.target) return;
+  let targetIds = [];
+  try { targetIds = JSON.parse(s.target.dataset.ids || "[]"); } catch {}
+  if (targetIds.length) joinItems(s.ids, targetIds);
+}
 
 /* ---------- INICIAR ---------- */
 loadSettings();

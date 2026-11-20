@@ -843,7 +843,7 @@ const MAX_VAULTS = 20;
 const RELOCK_MS = 60000;
 
 /* Dados novos (saldo inicial, orçamentos e cofres). As despesas continuam em "minhasDespesas". */
-const priv = { initialBalance: 0, budgets: {}, vaults: [] };
+const priv = { initialBalance: 0, budgets: {}, vaults: [], merges: [] };
 
 Object.assign(I18N.pt, {
   searchPh: "Buscar pelo nome...", filters: "Filtros", filterAllCats: "Todas as categorias",
@@ -993,7 +993,7 @@ function normalizeText(text) {
 }
 
 function sanitizePriv(raw) {
-  const out = { initialBalance: 0, budgets: {}, vaults: [] };
+  const out = { initialBalance: 0, budgets: {}, vaults: [], merges: [] };
   if (!raw || typeof raw !== "object") return out;
 
   const start = Number(raw.initialBalance);
@@ -1024,6 +1024,16 @@ function sanitizePriv(raw) {
     });
     out.vaults = out.vaults.slice(0, MAX_VAULTS);
   }
+
+  /* Movimentações juntas: { id, month: "AAAA-MM", ids: [ids originais] } */
+  if (Array.isArray(raw.merges)) {
+    raw.merges.forEach(m => {
+      if (!m || typeof m.month !== "string" || !/^\d{4}-\d{2}$/.test(m.month) || !Array.isArray(m.ids)) return;
+      const ids = [...new Set(m.ids.filter(id => typeof id === "string" && id))];
+      if (ids.length < 2) return;
+      out.merges.push({ id: typeof m.id === "string" && m.id ? m.id : crypto.randomUUID(), month: m.month, ids });
+    });
+  }
   return out;
 }
 
@@ -1032,6 +1042,7 @@ function applyPriv(raw) {
   priv.initialBalance = p.initialBalance;
   priv.budgets = p.budgets;
   priv.vaults = p.vaults;
+  priv.merges = p.merges;
 }
 
 function loadPriv() {

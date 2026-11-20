@@ -8,8 +8,8 @@ const settings = { lang: "pt", mode: "light", color: "none", cardDay: 0, cardNex
 
 /* Itens da tela que a pessoa pode ligar e desligar (Configurações > Exibição). */
 const VIEW_KEYS = ["totalPay", "totalRemaining", "wallet", "cardTotal", "charts", "filters", "vaults", "scan",
-  "alertOverdue", "alertSoon", "alertBudget", "alertBackup", "compare", "yearly", "notes", "sort", "swipe", "overdueHighlight"];
-const VIEW_NEW = ["compare", "yearly", "notes", "sort", "swipe", "overdueHighlight"];
+  "alertOverdue", "alertSoon", "alertBudget", "alertBackup", "compare", "yearly", "notes", "sort", "swipe", "overdueHighlight", "merge"];
+const VIEW_NEW = ["compare", "yearly", "notes", "sort", "swipe", "overdueHighlight", "merge"];
 const MAX_CARDS = 10;
 
 /* Moeda: "auto" segue o idioma (como sempre foi); ou o usuário escolhe uma. */
@@ -392,7 +392,9 @@ function render() {
     list.firstChild.textContent = t(filtersActive() && allItems.length ? "emptyFilter" : "empty");
   }
 
-  items.forEach(tx => {
+  mergeDisplayList(items).forEach(entry => {
+    if (entry.group) { list.appendChild(mergedRow(entry.group)); return; }
+    const tx = entry.tx;
     const div = document.createElement("div");
     div.className = `tx ${tx.type}`;
 
@@ -448,6 +450,7 @@ function render() {
     div.append(left, value);
     div.addEventListener("click", () => { if (swipeBlock) return; transactionOptions(tx); });
     if (settings.view.swipe && tx.type !== "income") attachSwipe(div, tx);
+    if (settings.view.merge) attachDrag(div, [tx.originalId]);
     list.appendChild(div);
   });
 
@@ -1151,6 +1154,11 @@ function applyImportedData(data) {
     Object.keys(p.budgets).forEach(k => { if (!(k in priv.budgets)) priv.budgets[k] = p.budgets[k]; });
     p.vaults.forEach(v => {
       if (!priv.vaults.some(x => x.id === v.id) && priv.vaults.length < MAX_VAULTS) priv.vaults.push(v);
+    });
+    p.merges.forEach(m => {
+      const busy = priv.merges.some(x => x.id === m.id ||
+        (x.month === m.month && x.ids.some(id => m.ids.includes(id))));
+      if (!busy) priv.merges.push(m);
     });
   }
 

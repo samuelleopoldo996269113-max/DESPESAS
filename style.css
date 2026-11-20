@@ -727,3 +727,30 @@ body:not(.hide-overdueHighlight) .tx.overdue .status { color: #a3262f; font-weig
 .snap-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); font-size: 12px; }
 .action-menu .snap-row button { width: auto; margin: 0; padding: 7px 12px; flex: none; }
 .action-menu button:disabled { opacity: .45; }
+/* ----- juntar movimentações (arrastar) ----- */
+.tx { -webkit-touch-callout: none; }
+body.dragging, body.dragging * { user-select: none; -webkit-user-select: none; }
+.drag-ghost {
+  position: fixed;
+  z-index: 3000;
+  margin: 0;
+  pointer-events: none;
+  opacity: .93;
+  transform: scale(1.03);
+  transition: none;
+  box-shadow: 0 12px 30px rgba(0,0,0,.3);
+}
+.tx.drag-source { opacity: .35; }
+.tx.drop-target { outline: 3px dashed #4f93da; outline-offset: 2px; transform: scale(1.02); }
+.tx.merged { border-left-width: 6px; }
+.tx.merged.zero { background: #eceef3; border-left-color: #8c93a0; }
+.tx.merged.zero .tx-value { color: #4b5263; }
+.tx.merged .tx-name { overflow-wrap: anywhere; }
+.merge-item { display: flex; gap: 6px; align-items: stretch; }
+.action-menu .merge-item button { margin-top: 8px; }
+.action-menu .merge-item .merge-open { flex: 1; width: auto; text-align: left; font-size: 13px; white-space: pre-line; }
+.action-menu .merge-item .merge-split { flex: 0 0 46px; width: 46px; padding: 0; background: var(--muted); }
+.action-menu .merge-open.expense { background: #c25560; }
+.action-menu .merge-open.card { background: #7a45c2; }
+.action-menu .merge-open.income { background: #3f7fc4; }
+.action-menu .merge-open.done { background: #20a34a; }
