@@ -957,7 +957,7 @@ function walletBreakdown() {
   });
 
   const initial = Number(priv.initialBalance) || 0;
-  const vaults = vaultsTotal();
+  const vaults = 0;   /* cofres não mexem na Carteira */
   return {
     initial, income, paid, vaults,
     total: initial + income - paid - vaults,
@@ -986,7 +986,6 @@ function openWalletModal() {
   menu.appendChild(line(t("wbInitial"), money(data.initial)));
   menu.appendChild(line("➕ " + t("wbIncome"), money(data.income)));
   menu.appendChild(line("➖ " + t("wbPaid"), money(data.paid)));
-  if (data.vaults) menu.appendChild(line("🏦 " + t("wbVaults"), money(data.vaults)));
   menu.appendChild(line("= " + t("wbResult"), money(data.total), true));
 
   const head = document.createElement("h3");
