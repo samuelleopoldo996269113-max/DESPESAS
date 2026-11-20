@@ -108,6 +108,9 @@ function renderViewPanel() {
 
       const text = document.createElement("span");
       text.textContent = t("v_" + key);
+      const left = document.createElement("span");
+      left.style.cssText = "display:flex;align-items:center;";
+      left.append(text, infoButton(key));
 
       const input = document.createElement("input");
       input.type = "checkbox";
@@ -121,7 +124,7 @@ function renderViewPanel() {
         render();
       });
 
-      row.append(text, input);
+      row.append(left, input);
       box.appendChild(row);
     });
   });
@@ -1358,6 +1361,100 @@ function endDrag() {
   try { targetIds = JSON.parse(s.target.dataset.ids || "[]"); } catch {}
   if (targetIds.length) joinItems(s.ids, targetIds);
 }
+
+/* ---------- BOTÃO DE EXPLICAÇÃO (ⓘ) AO LADO DE CADA FUNÇÃO ---------- */
+const INFO_PT = {
+  totalPay: ["Total a pagar", "Soma de todas as despesas do mês que está na tela, as já pagas e as que ainda faltam pagar.\n\nNão entram aqui as entradas de dinheiro nem as compras no cartão de crédito (elas aparecem no quadro Cartão de crédito).\n\nMuda quando você troca de mês nas setas."],
+  totalRemaining: ["Saldo a pagar", "Quanto ainda falta pagar neste mês: a soma das despesas que continuam pendentes.\n\nQuando você marca uma conta como paga, ela sai desta soma. Não inclui as compras do cartão de crédito."],
+  wallet: ["Carteira", "É o seu dinheiro disponível agora. A conta é:\n\nsaldo inicial + entradas já recebidas − despesas e compras no cartão já pagas − dinheiro guardado nos cofres.\n\nA Carteira soma TODOS os meses, não só o que está na tela. Entradas com data futura só contam quando a data chegar.\n\nToque na Carteira para ver, mês a mês, de onde vem o valor."],
+  cardTotal: ["Cartão de crédito", "Soma das compras no cartão deste mês que ainda não foram pagas.\n\nQuando você paga a fatura (botão Pagar fatura), as compras são marcadas como pagas e passam a descontar da Carteira. Se você tem mais de um cartão, cada um tem a sua fatura."],
+  charts: ["Gráficos", "Mostram para onde vai o seu dinheiro.\n\nAba Mês: uma pizza com os gastos por categoria no mês da tela, com valor e porcentagem (e a barra dos orçamentos que você definiu).\n\nAba 6 meses: barras com o total gasto em cada um dos últimos 6 meses e uma linha tracejada com a média. Use as setas para andar no tempo.\n\nOs gráficos sempre abrem fechados."],
+  compare: ["Comparação com o mês anterior", "Compara os gastos do mês da tela com os do mês anterior, no total e por categoria.\n\n▲ vermelho = você gastou mais. ▼ verde = você gastou menos. Mostra a diferença em valor e em porcentagem."],
+  yearly: ["Resumo anual", "Mostra um ano inteiro: o total de entradas, o total de despesas e o que sobrou (entradas − despesas), com uma linha para cada mês que teve lançamentos.\n\nUse as setas para trocar o ano."],
+  vaults: ["Cofres", "Servem para juntar dinheiro para um plano, como uma viagem ou uma reserva. Cada cofre tem nome, valor-alvo e, se quiser, uma data. Toque num cofre para guardar dinheiro, retirar, editar ou excluir.\n\nGuardar dinheiro tira da Carteira, e retirar devolve para a Carteira. Se a Carteira não tiver esse saldo, ela fica negativa.\n\nA barra mostra o quanto já foi guardado e, quando há data, quanto guardar por mês."],
+  filters: ["Busca e filtros", "O campo de busca procura pelo nome da conta (e pela observação, se ela estiver ligada).\n\nO botão Filtros deixa escolher uma categoria e uma situação: pagas, pendentes ou atrasadas. Limpar filtros volta ao normal.\n\nOs filtros só escondem itens da lista, nada é apagado."],
+  sort: ["Ordenar a lista", "Muda a ordem da lista do mês: por data (padrão), maior valor, menor valor ou nome (A-Z).\n\nAo abrir o app, a lista sempre volta para data."],
+  scan: ["Câmera (ler nota)", "O botão da câmera, no topo, tira a foto de uma nota ou cupom e tenta preencher a despesa sozinho. A imagem é lida no próprio aparelho.\n\nNa primeira vez o app baixa um componente de leitura, então precisa de internet. Sempre confira o valor e a data antes de salvar, porque a leitura pode errar."],
+  alertOverdue: ["Contas atrasadas", "Mostra uma caixa vermelha no topo com as despesas pendentes cuja data de vencimento já passou."],
+  alertSoon: ["Contas vencendo em breve", "Mostra uma caixa amarela com as contas pendentes que vencem hoje ou nos próximos dias.\n\nVocê escolhe a antecedência (1, 2 ou 3 dias) na opção Avisar vencimentos com antecedência."],
+  alertBudget: ["Orçamento do mês", "Avisa quando uma categoria chegou a 80% do limite que você definiu, e em vermelho quando o limite estoura.\n\nSó aparece para categorias que têm orçamento definido."],
+  alertBackup: ["Lembrete de backup", "Avisa quando faz 7 dias ou mais que você não exporta um backup (ou se nunca exportou). O botão Fazer backup agora exporta na hora.\n\nSe você tocar em Depois, o aviso some até você fechar e abrir o app de novo."],
+  notes: ["Observações", "Liga um campo de observação (até 200 caracteres) ao criar ou editar uma conta, para anotar detalhes. Ela também entra na busca e na planilha.\n\nDesligar só esconde o campo: o que você já escreveu continua guardado."],
+  swipe: ["Deslizar para pagar", "Na lista, deslize uma conta para a direita para marcar como paga, ou para a esquerda para voltar a pendente. É preciso arrastar um pouco para valer."],
+  overdueHighlight: ["Destacar contas atrasadas", "Pinta de vermelho as contas pendentes com a data vencida e escreve \"Atrasada\" nelas, para você achar rápido."],
+  language: ["Idioma", "Troca os textos do app entre português, inglês e espanhol. Os seus dados não mudam.\n\nOs Termos de uso e a Política de privacidade ficam sempre em português."],
+  currency: ["Moeda", "Escolhe como os valores aparecem: Real, Dólar, Euro ou Peso mexicano. Em Automática, o app usa a moeda do idioma.\n\nSó muda o símbolo e o formato: os valores não são convertidos."],
+  mode: ["Modo", "Escolhe entre o visual claro e o escuro. O escuro costuma cansar menos a vista à noite."],
+  color: ["Cor do aplicativo", "Troca a cor de destaque do app entre azul e rosa."],
+  view: ["Exibição", "Escolha o que aparece na tela principal, nos avisos e nos extras.\n\nDesligar só esconde: seus dados continuam guardados e você liga de novo quando quiser. Toque no ⓘ de cada linha para ver o que ela faz."],
+  soon: ["Avisar vencimentos com antecedência", "Define quantos dias antes de uma conta vencer o aviso amarelo aparece: 1, 2 ou 3 dias."],
+  cards: ["Cartões de crédito", "Cadastre até 10 cartões.\n\nDia do vencimento: as compras do mês caem juntas nesse dia. Vazio = vale a data de cada compra.\n\nMês seguinte / Mesmo mês: diz se a fatura vence no mês seguinte ao da compra ou no mesmo mês.\n\nAo excluir um cartão, as compras dele passam para outro cartão."],
+  initial: ["Saldo inicial da carteira", "Quanto dinheiro você já tinha na carteira antes de começar a usar o app. É o ponto de partida da conta da Carteira."],
+  budget: ["Orçamento por categoria", "Defina um limite de gasto por mês em cada categoria (deixe vazio para não ter limite).\n\nO gráfico do mês mostra uma barra de progresso, e o app avisa quando você chega perto do limite e quando estoura."],
+  customCats: ["Categorias personalizadas", "Crie suas próprias categorias, com nome e emoji (até 20). Elas aparecem ao lançar despesas, nos gráficos e nos filtros.\n\nAo excluir uma categoria, as despesas dela passam a aparecer em Geral."],
+  protect: ["Proteção", "Protege seus dados com uma senha: eles ficam criptografados no aparelho, e o app pede a senha ao abrir (e depois de 1 minuto fora do app).\n\nATENÇÃO: se você esquecer a senha, ninguém consegue recuperar os dados. Faça um backup antes de ativar.\n\nSe o aparelho permitir, dá para ligar o desbloqueio do celular (digital ou rosto) como atalho."],
+  backup: ["Backup", "Exportar backup salva todos os seus dados num arquivo, que você guarda onde quiser. Use para trocar de aparelho ou se perder tudo.\n\nImportar backup lê esse arquivo de volta e junta com o que já está no app.\n\nExportar planilha (CSV) cria uma tabela para abrir no Excel ou no Google Planilhas. Serve para consultar, não para restaurar."],
+  snap: ["Cópias internas", "O app guarda sozinho, a cada cerca de 20 horas, uma cópia dos seus dados neste aparelho (as 10 mais recentes). Ajuda se você apagar algo sem querer: toque em Restaurar. Antes de restaurar, o app guarda uma cópia do que está agora.\n\nMas elas ficam no aparelho: se você desinstalar o app ou limpar os dados, elas somem. Para isso, exporte um backup."],
+  wipe: ["Apagar dados", "Apaga TUDO neste aparelho: lançamentos, configurações, cópias internas e a senha. Não dá para desfazer.\n\nExporte um backup antes. O app pede que você digite APAGAR para confirmar."],
+  about: ["Sobre o app", "Mostra a versão do 1° Passo, os Termos de uso, a Política de privacidade e o contato para dúvidas e sugestões."]
+};
+
+const INFO_BTN_CSS = "flex:none!important;width:22px!important;height:22px!important;min-width:22px!important;padding:0!important;margin:0 0 0 8px!important;border-radius:50%!important;background:transparent!important;color:inherit!important;border:1.5px solid currentColor!important;font-size:13px!important;font-weight:bold!important;line-height:1!important;cursor:pointer;opacity:.8;";
+
+function openInfo(key) {
+  const info = INFO_PT[key];
+  if (!info) return;
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(info[0]);
+  menu.style.maxHeight = "88vh";
+  menu.style.overflowY = "auto";
+  info[1].split("\n\n").forEach(part => {
+    const p = document.createElement("p");
+    p.textContent = part;
+    p.style.whiteSpace = "pre-line";
+    menu.appendChild(p);
+  });
+  addModalButton(menu, t("close"), () => overlay.remove(), "cancel-action");
+}
+
+function infoButton(key) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "info-btn";
+  button.textContent = "i";
+  button.setAttribute("aria-label", INFO_PT[key] ? INFO_PT[key][0] + ": explicação" : "Explicação");
+  button.style.cssText = INFO_BTN_CSS;
+  button.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    openInfo(key);
+  });
+  return button;
+}
+
+/* Coloca o ⓘ ao lado de um elemento fixo da tela (o elemento continua o mesmo, então os textos seguem sendo traduzidos). */
+function wrapWithInfo(id, key, grow) {
+  const el = document.getElementById(id);
+  if (!el || !el.parentNode || el.dataset.info) return;
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "display:flex!important;flex-direction:row!important;justify-content:flex-start!important;text-align:left!important;" +
+    (grow ? "align-items:center;width:100%;padding-right:10px;" : (id.startsWith("lblSettings") ? "align-items:flex-end;" : "align-items:" + (["lblTotal", "lblRemaining", "lblWallet", "lblCard", "lblSort"].includes(id) ? "center" : "flex-end") + ";"));
+  el.parentNode.insertBefore(wrap, el);
+  wrap.appendChild(el);
+  if (grow) { el.style.setProperty("flex", "1 1 0", "important"); el.style.setProperty("width", "auto", "important"); el.style.minWidth = "0"; }
+  wrap.appendChild(infoButton(key));
+  el.dataset.info = "1";
+}
+
+(function installInfoButtons() {
+  [["lblTotal", "totalPay"], ["lblRemaining", "totalRemaining"], ["lblWallet", "wallet"], ["lblCard", "cardTotal"],
+   ["lblSort", "sort"], ["lblLanguage", "language"], ["lblCurrency", "currency"], ["lblMode", "mode"], ["lblColor", "color"],
+   ["lblView", "view"], ["lblSoon", "soon"], ["lblCardSet", "cards"], ["lblInitial", "initial"], ["lblBudget", "budget"],
+   ["lblCustomCats", "customCats"], ["lblProtect", "protect"], ["lblBackup", "backup"], ["lblSnap", "snap"],
+   ["lblWipe", "wipe"], ["lblAbout", "about"]].forEach(([id, key]) => wrapWithInfo(id, key, false));
+  [["chartsToggle", "charts"], ["compareToggle", "compare"], ["yearToggle", "yearly"], ["vaultsToggle", "vaults"]]
+    .forEach(([id, key]) => wrapWithInfo(id, key, true));
+})();
 
 /* ---------- INICIAR ---------- */
 loadSettings();
