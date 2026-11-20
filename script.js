@@ -501,6 +501,7 @@ function updateSummary(items) {
     }
   });
 
+  wallet -= vaultsTotal();
 
   const cardTotal = items.filter(tx => tx.type === "card" && !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
   document.getElementById("cardTotal").textContent = money(cardTotal);
@@ -1167,7 +1168,7 @@ function importBackup(file) {
     try {
       // Ignora marcas de formatação (3 crases) caso o arquivo tenha sido copiado e colado.
       const cleaned = String(reader.result)
-        .replace(/^\uFEFF/, "")
+        .replace(/^﻿/, "")
         .trim()
         .replace(/^[\x60]{3}[a-zA-Z]*\s*/, "")
         .replace(/\s*[\x60]{3}$/, "")

@@ -806,7 +806,7 @@ function buildCsv() {
       ];
     });
 
-  return "\uFEFF" + [header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n") + "\r\n";
+  return "﻿" + [header, ...rows].map(row => row.map(csvCell).join(";")).join("\r\n") + "\r\n";
 }
 
 async function exportCsv() {
@@ -866,7 +866,7 @@ Object.assign(I18N.pt, {
   vaultDeposit: "Guardar dinheiro", vaultWithdraw: "Retirar dinheiro", vaultAmountPh: "Valor",
   vaultInvalid: "Informe um nome e um valor-alvo maiores que zero.",
   vaultAmountInvalid: "Informe um valor válido.", vaultNoBalance: "Você só pode retirar até {v}.",
-  vaultDelTitle: "Excluir cofre?", vaultDelText: "O cofre será excluído. O saldo da Carteira não muda.",
+  vaultDelTitle: "Excluir cofre?", vaultDelText: "O dinheiro guardado volta para a Carteira.",
   vaultMax: "Limite de 20 cofres.", vaultEdit: "Editar cofre", vaultDel: "Excluir cofre",
   protectSet: "Proteção", protectOffInfo: "Desligada. Ao ligar, seus dados ficam criptografados e o app pede uma senha ao abrir.",
   protectOnInfo: "Ligada. Seus dados estão criptografados.",
@@ -909,7 +909,7 @@ Object.assign(I18N.en, {
   vaultDeposit: "Add money", vaultWithdraw: "Take money out", vaultAmountPh: "Amount",
   vaultInvalid: "Enter a name and a target amount greater than zero.",
   vaultAmountInvalid: "Enter a valid amount.", vaultNoBalance: "You can only take out up to {v}.",
-  vaultDelTitle: "Delete vault?", vaultDelText: "The vault will be deleted. Your Wallet balance does not change.",
+  vaultDelTitle: "Delete vault?", vaultDelText: "The saved money goes back to the Wallet.",
   vaultMax: "Limit of 20 vaults.", vaultEdit: "Edit vault", vaultDel: "Delete vault",
   protectSet: "Protection", protectOffInfo: "Off. When on, your data is encrypted and the app asks for a password on opening.",
   protectOnInfo: "On. Your data is encrypted.",
@@ -952,7 +952,7 @@ Object.assign(I18N.es, {
   vaultDeposit: "Guardar dinero", vaultWithdraw: "Retirar dinero", vaultAmountPh: "Valor",
   vaultInvalid: "Escribe un nombre y un valor objetivo mayor que cero.",
   vaultAmountInvalid: "Escribe un valor válido.", vaultNoBalance: "Solo puedes retirar hasta {v}.",
-  vaultDelTitle: "¿Eliminar caja?", vaultDelText: "La caja se eliminará. El saldo de la Cartera no cambia.",
+  vaultDelTitle: "¿Eliminar caja?", vaultDelText: "El dinero guardado vuelve a la Cartera.",
   vaultMax: "Límite de 20 cajas.", vaultEdit: "Editar caja", vaultDel: "Eliminar caja",
   protectSet: "Protección", protectOffInfo: "Desactivada. Al activarla, tus datos se cifran y la app pide una contraseña al abrir.",
   protectOnInfo: "Activada. Tus datos están cifrados.",
@@ -989,7 +989,7 @@ function moneyInputText(n) {
 }
 
 function normalizeText(text) {
-  return String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return String(text || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 }
 
 function sanitizePriv(raw) {
