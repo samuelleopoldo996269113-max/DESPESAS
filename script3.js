@@ -901,6 +901,23 @@ function openWipeModal() {
 
 document.getElementById("wipeButton").addEventListener("click", openWipeModal);
 
+/* ---------- RECEBIMENTOS ATRASADOS ---------- */
+Object.assign(I18N.pt, {
+  incomeOverdue: "Recebimento atrasado", toReceive: "A receber",
+  markNotReceived: "Ainda não recebi", markReceived: "Marcar como recebida",
+  overdueIncomeTitle: "Recebimentos atrasados:", expectedOn: "previsto para"
+});
+Object.assign(I18N.en, {
+  incomeOverdue: "Income overdue", toReceive: "To receive",
+  markNotReceived: "Not received yet", markReceived: "Mark as received",
+  overdueIncomeTitle: "Overdue income:", expectedOn: "expected on"
+});
+Object.assign(I18N.es, {
+  incomeOverdue: "Ingreso atrasado", toReceive: "Por recibir",
+  markNotReceived: "Aún no lo recibí", markReceived: "Marcar como recibido",
+  overdueIncomeTitle: "Ingresos atrasados:", expectedOn: "previsto para"
+});
+
 /* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
 Object.assign(I18N.pt, {
   wbTitle: "De onde vem a Carteira", wbHelp: "A Carteira soma todos os meses, não só o que está na tela.",
@@ -947,7 +964,7 @@ function walletBreakdown() {
           : monthKey(occurrence);
         const shown = monthKey(occurrence);
 
-        if (tx.type === "income") add(shown, tx, amountForMonth(tx, key), 1);
+        if (tx.type === "income") { if (!(tx.notReceivedMonths || []).includes(key)) add(shown, tx, amountForMonth(tx, key), 1); }
         else if ((tx.paidMonths || []).includes(key)) add(shown, tx, amountForMonth(tx, key), -1);
 
         index++;
@@ -955,7 +972,7 @@ function walletBreakdown() {
       }
     } else {
       const shown = String(tx.date).slice(0, 7);
-      if (tx.type === "income" && tx.date <= today) add(shown, tx, tx.amount, 1);
+      if (tx.type === "income" && tx.date <= today && !tx.notReceived) add(shown, tx, tx.amount, 1);
       if ((tx.type === "expense" || tx.type === "card") && tx.paid) add(shown, tx, tx.amount, -1);
     }
   });
@@ -1364,9 +1381,10 @@ function endDrag() {
 
 /* ---------- BOTÃO DE EXPLICAÇÃO (ⓘ) AO LADO DE CADA FUNÇÃO ---------- */
 const INFO_PT = {
+  income: ["Recebimento atrasado", "Toda entrada com data que já passou conta como recebida e soma na Carteira.\n\nSe o dinheiro ainda não chegou, toque na entrada e escolha \"Ainda não recebi\". Ela deixa de somar na Carteira, aparece como recebimento atrasado (em vermelho) e entra no aviso do topo.\n\nQuando o dinheiro chegar, toque nela e escolha \"Marcar como recebida\"."],
   totalPay: ["Total a pagar", "Soma de todas as despesas do mês que está na tela, as já pagas e as que ainda faltam pagar.\n\nNão entram aqui as entradas de dinheiro nem as compras no cartão de crédito (elas aparecem no quadro Cartão de crédito).\n\nMuda quando você troca de mês nas setas."],
   totalRemaining: ["Saldo a pagar", "Quanto ainda falta pagar neste mês: a soma das despesas que continuam pendentes.\n\nQuando você marca uma conta como paga, ela sai desta soma. Não inclui as compras do cartão de crédito."],
-  wallet: ["Carteira", "É o seu dinheiro disponível agora. A conta é:\n\nsaldo inicial + entradas já recebidas − despesas e compras no cartão já pagas − dinheiro guardado nos cofres.\n\nA Carteira soma TODOS os meses, não só o que está na tela. Entradas com data futura só contam quando a data chegar.\n\nToque na Carteira para ver, mês a mês, de onde vem o valor."],
+  wallet: ["Carteira", "É o seu dinheiro disponível agora. A conta é:\n\nsaldo inicial + entradas já recebidas (as marcadas como \"Ainda não recebi\" não contam) − despesas e compras no cartão já pagas − dinheiro guardado nos cofres.\n\nA Carteira soma TODOS os meses, não só o que está na tela. Entradas com data futura só contam quando a data chegar.\n\nToque na Carteira para ver, mês a mês, de onde vem o valor."],
   cardTotal: ["Cartão de crédito", "Soma das compras no cartão deste mês que ainda não foram pagas.\n\nQuando você paga a fatura (botão Pagar fatura), as compras são marcadas como pagas e passam a descontar da Carteira. Se você tem mais de um cartão, cada um tem a sua fatura."],
   charts: ["Gráficos", "Mostram para onde vai o seu dinheiro.\n\nAba Mês: uma pizza com os gastos por categoria no mês da tela, com valor e porcentagem (e a barra dos orçamentos que você definiu).\n\nAba 6 meses: barras com o total gasto em cada um dos últimos 6 meses e uma linha tracejada com a média. Use as setas para andar no tempo.\n\nOs gráficos sempre abrem fechados."],
   compare: ["Comparação com o mês anterior", "Compara os gastos do mês da tela com os do mês anterior, no total e por categoria.\n\n▲ vermelho = você gastou mais. ▼ verde = você gastou menos. Mostra a diferença em valor e em porcentagem."],
@@ -1375,7 +1393,7 @@ const INFO_PT = {
   filters: ["Busca e filtros", "O campo de busca procura pelo nome da conta (e pela observação, se ela estiver ligada).\n\nO botão Filtros deixa escolher uma categoria e uma situação: pagas, pendentes ou atrasadas. Limpar filtros volta ao normal.\n\nOs filtros só escondem itens da lista, nada é apagado."],
   sort: ["Ordenar a lista", "Muda a ordem da lista do mês: por data (padrão), maior valor, menor valor ou nome (A-Z).\n\nAo abrir o app, a lista sempre volta para data."],
   scan: ["Câmera (ler nota)", "O botão da câmera, no topo, tira a foto de uma nota ou cupom e tenta preencher a despesa sozinho. A imagem é lida no próprio aparelho.\n\nNa primeira vez o app baixa um componente de leitura, então precisa de internet. Sempre confira o valor e a data antes de salvar, porque a leitura pode errar."],
-  alertOverdue: ["Contas atrasadas", "Mostra uma caixa vermelha no topo com as despesas pendentes cuja data de vencimento já passou."],
+  alertOverdue: ["Contas atrasadas", "Mostra uma caixa vermelha no topo com as despesas pendentes cuja data de vencimento já passou.\n\nTambém lista os recebimentos atrasados: entradas que você marcou como \"Ainda não recebi\" e cuja data já passou."],
   alertSoon: ["Contas vencendo em breve", "Mostra uma caixa amarela com as contas pendentes que vencem hoje ou nos próximos dias.\n\nVocê escolhe a antecedência (1, 2 ou 3 dias) na opção Avisar vencimentos com antecedência."],
   alertBudget: ["Orçamento do mês", "Avisa quando uma categoria chegou a 80% do limite que você definiu, e em vermelho quando o limite estoura.\n\nSó aparece para categorias que têm orçamento definido."],
   alertBackup: ["Lembrete de backup", "Avisa quando faz 7 dias ou mais que você não exporta um backup (ou se nunca exportou). O botão Fazer backup agora exporta na hora.\n\nSe você tocar em Depois, o aviso some até você fechar e abrir o app de novo."],

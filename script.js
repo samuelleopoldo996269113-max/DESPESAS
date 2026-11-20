@@ -398,9 +398,12 @@ function render() {
     const div = document.createElement("div");
     div.className = `tx ${tx.type}`;
 
-    const received = tx.type === "income" && tx.date <= dateString(new Date());
+    const notReceived = tx.type === "income" && isNotReceived(tx);
+    const received = tx.type === "income" && !notReceived && tx.date <= dateString(new Date());
+    const incomeLate = tx.type === "income" && notReceived && tx.date < dateString(new Date());
 
     if (tx.type === "income" && received) div.classList.add("received");
+    if (incomeLate) div.classList.add("overdue");
     if ((tx.type === "expense" || tx.type === "card") && tx.paid) div.classList.add("done");
     const isOverdue = (tx.type === "expense" || tx.type === "card") && !tx.paid && tx.date < dateString(new Date());
     if (isOverdue) div.classList.add("overdue");
@@ -422,7 +425,7 @@ function render() {
     const status = document.createElement("div");
     status.className = "status";
     status.textContent = tx.type === "income"
-      ? (received ? t("received") : t("planned"))
+      ? (received ? t("received") : incomeLate ? t(settings.view.overdueHighlight ? "incomeOverdue" : "toReceive") : t("planned"))
       : (tx.paid ? t("paid") : (isOverdue && settings.view.overdueHighlight ? t("overdueLabel") : t("pending")));
 
     const left = document.createElement("div");
@@ -490,7 +493,7 @@ function updateSummary(items) {
           : monthKey(occurrence);
 
         if (tx.type === "income") {
-          wallet += amountForMonth(tx, key);
+          if (!(tx.notReceivedMonths || []).includes(key)) wallet += amountForMonth(tx, key);
         } else if ((tx.paidMonths || []).includes(key)) {
           wallet -= amountForMonth(tx, key);
         }
@@ -499,7 +502,7 @@ function updateSummary(items) {
         occurrence = addMonths(start, index);
       }
     } else {
-      if (tx.type === "income" && tx.date <= today) wallet += tx.amount;
+      if (tx.type === "income" && tx.date <= today && !tx.notReceived) wallet += tx.amount;
       if ((tx.type === "expense" || tx.type === "card") && tx.paid) wallet -= tx.amount;
     }
   });
@@ -552,11 +555,44 @@ function getOverdueExpenses() {
   return overdue.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/* Entradas marcadas como "não recebidas" cuja data já passou. */
+function getOverdueIncomes() {
+  const today = dateString(new Date());
+  const late = [];
+
+  transactions.forEach(tx => {
+    if (tx.type !== "income") return;
+
+    if (tx.repeat === "monthly") {
+      const start = new Date(tx.date + "T12:00:00");
+      const end = new Date(today + "T12:00:00");
+      if (start > end) return;
+
+      let index = 0;
+      let occurrence = new Date(start);
+      while (occurrence <= end) {
+        const key = monthKey(occurrence);
+        const day = dateString(occurrence);
+        if (day < today && (tx.notReceivedMonths || []).includes(key)) {
+          late.push({ description: tx.description, amount: amountForMonth(tx, key), date: day });
+        }
+        index++;
+        occurrence = addMonths(start, index);
+      }
+    } else if (tx.notReceived && tx.date < today) {
+      late.push({ description: tx.description, amount: tx.amount, date: tx.date });
+    }
+  });
+
+  return late.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function updateOverdueAlert() {
   const alertBox = document.getElementById("overdueAlert");
   const overdue = getOverdueExpenses();
+  const lateIncomes = getOverdueIncomes();
 
-  if (overdue.length === 0) {
+  if (overdue.length === 0 && lateIncomes.length === 0) {
     alertBox.hidden = true;
     alertBox.innerHTML = "";
     return;
@@ -564,18 +600,34 @@ function updateOverdueAlert() {
 
   alertBox.innerHTML = "";
 
-  const title = document.createElement("strong");
-  title.textContent = t("overdueTitle");
+  if (overdue.length) {
+    const title = document.createElement("strong");
+    title.textContent = t("overdueTitle");
 
-  const ul = document.createElement("ul");
-  overdue.forEach(item => {
-    const li = document.createElement("li");
-    li.textContent =
-      `${item.description} - ${money(item.amount)} (${t("due")} ${formatDate(item.date)})`;
-    ul.appendChild(li);
-  });
+    const ul = document.createElement("ul");
+    overdue.forEach(item => {
+      const li = document.createElement("li");
+      li.textContent =
+        `${item.description} - ${money(item.amount)} (${t("due")} ${formatDate(item.date)})`;
+      ul.appendChild(li);
+    });
+    alertBox.append(title, ul);
+  }
 
-  alertBox.append(title, ul);
+  if (lateIncomes.length) {
+    const title = document.createElement("strong");
+    title.textContent = t("overdueIncomeTitle");
+
+    const ul = document.createElement("ul");
+    lateIncomes.forEach(item => {
+      const li = document.createElement("li");
+      li.textContent =
+        `${item.description} - ${money(item.amount)} (${t("expectedOn")} ${formatDate(item.date)})`;
+      ul.appendChild(li);
+    });
+    alertBox.append(title, ul);
+  }
+
   alertBox.hidden = false;
 }
 
@@ -633,6 +685,32 @@ function setPaid(tx, wantPaid) {
   return true;
 }
 
+/* Entrada que ainda não foi recebida (ex.: salário atrasado). Entradas antigas não têm essa marca e continuam valendo como recebidas. */
+function isNotReceived(tx) {
+  if (tx.repeat === "monthly") return (tx.notReceivedMonths || []).includes(monthKey(new Date(tx.date + "T12:00:00")));
+  return !!tx.notReceived;
+}
+
+function setReceived(tx, wantReceived) {
+  const original = transactions.find(item => item.id === tx.originalId);
+  if (!original) return false;
+
+  if (tx.repeat === "monthly") {
+    const key = monthKey(new Date(tx.date + "T12:00:00"));
+    const list = original.notReceivedMonths || [];
+    const has = list.includes(key);
+    if (wantReceived === !has) return false;
+    original.notReceivedMonths = wantReceived ? list.filter(month => month !== key) : [...list, key];
+  } else {
+    if (wantReceived === !original.notReceived) return false;
+    if (wantReceived) delete original.notReceived; else original.notReceived = true;
+  }
+
+  saveData();
+  render();
+  return true;
+}
+
 function transactionOptions(tx) {
   if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
   if (!document.getElementById("settingsOverlay").hidden) return;
@@ -644,6 +722,16 @@ function transactionOptions(tx) {
       overlay.remove();
       setPaid(tx, !tx.paid);
     });
+  }
+
+  if (tx.type === "income") {
+    const notReceived = isNotReceived(tx);
+    if (notReceived || tx.date <= dateString(new Date())) {
+      addModalButton(menu, notReceived ? t("markReceived") : t("markNotReceived"), () => {
+        overlay.remove();
+        setReceived(tx, notReceived);
+      });
+    }
   }
 
   addModalButton(menu, t("edit"), () => {
