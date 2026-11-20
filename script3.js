@@ -805,9 +805,27 @@ async function renderSnapList() {
     button.textContent = t("snapRestore");
     button.addEventListener("click", () => confirmRestore(rec));
 
-    row.append(text, button);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = "✕";
+    del.setAttribute("aria-label", t("snapDeleteTitle"));
+    del.style.cssText = "flex:0 0 auto;width:32px;height:32px;padding:0;margin-right:8px;border-radius:50%;background:#b3353d;color:#fff;font-size:16px;line-height:1;";
+    del.addEventListener("click", () => confirmDeleteSnap(rec));
+
+    row.append(del, text, button);
     box.appendChild(row);
   });
+}
+
+function confirmDeleteSnap(rec) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("snapDeleteTitle"), t("snapDeleteText"));
+  addModalButton(menu, t("snapDeleteYes"), async () => {
+    overlay.remove();
+    try { await snapDel(rec.id); } catch (error) { console.error(error); }
+    renderSnapList();
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
 }
 
 function confirmRestore(rec) {
@@ -900,6 +918,10 @@ function openWipeModal() {
 }
 
 document.getElementById("wipeButton").addEventListener("click", openWipeModal);
+
+Object.assign(I18N.pt, { snapDeleteTitle: "Excluir esta cópia?", snapDeleteText: "Tem certeza? Esta cópia interna será apagada e não dá para desfazer. Seus lançamentos atuais não são afetados.", snapDeleteYes: "Sim, excluir" });
+Object.assign(I18N.en, { snapDeleteTitle: "Delete this copy?", snapDeleteText: "Are you sure? This internal copy will be deleted and cannot be undone. Your current entries are not affected.", snapDeleteYes: "Yes, delete" });
+Object.assign(I18N.es, { snapDeleteTitle: "¿Eliminar esta copia?", snapDeleteText: "¿Seguro? Esta copia interna se eliminará y no se puede deshacer. Tus registros actuales no se ven afectados.", snapDeleteYes: "Sí, eliminar" });
 
 /* ---------- RECEBIMENTOS ATRASADOS ---------- */
 Object.assign(I18N.pt, {
