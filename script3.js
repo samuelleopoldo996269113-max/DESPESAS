@@ -897,6 +897,147 @@ function openWipeModal() {
 
 document.getElementById("wipeButton").addEventListener("click", openWipeModal);
 
+/* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
+Object.assign(I18N.pt, {
+  wbTitle: "De onde vem a Carteira", wbHelp: "A Carteira soma todos os meses, não só o que está na tela.",
+  wbInitial: "Saldo inicial", wbIncome: "Entradas recebidas", wbPaid: "Despesas pagas", wbVaults: "Guardado nos cofres",
+  wbResult: "Carteira", wbByMonth: "Mês a mês (toque para ver os itens)", wbNone: "Nenhum lançamento contado ainda.",
+  wbMonthNet: "Saldo do mês", wbHint: "Toque para ver os detalhes"
+});
+Object.assign(I18N.en, {
+  wbTitle: "Where the Wallet comes from", wbHelp: "The Wallet adds up all months, not only the one on screen.",
+  wbInitial: "Starting balance", wbIncome: "Income received", wbPaid: "Expenses paid", wbVaults: "Saved in vaults",
+  wbResult: "Wallet", wbByMonth: "Month by month (tap to see the items)", wbNone: "No entries counted yet.",
+  wbMonthNet: "Month balance", wbHint: "Tap to see the details"
+});
+Object.assign(I18N.es, {
+  wbTitle: "De dónde viene la Cartera", wbHelp: "La Cartera suma todos los meses, no solo el de la pantalla.",
+  wbInitial: "Saldo inicial", wbIncome: "Ingresos recibidos", wbPaid: "Gastos pagados", wbVaults: "Guardado en las cajas",
+  wbResult: "Cartera", wbByMonth: "Mes a mes (toca para ver los ítems)", wbNone: "Aún no hay registros contados.",
+  wbMonthNet: "Saldo del mes", wbHint: "Toca para ver los detalles"
+});
+
+/* Mesma conta da Carteira, mas guardando cada item para mostrar na tela. */
+function walletBreakdown() {
+  const today = dateString(new Date());
+  const months = {};
+  let income = 0, paid = 0;
+
+  const add = (key, tx, amount, sign) => {
+    const m = months[key] || (months[key] = { key, income: 0, paid: 0, items: [] });
+    if (sign > 0) { m.income += amount; income += amount; } else { m.paid += amount; paid += amount; }
+    m.items.push({ description: tx.description, amount, sign });
+  };
+
+  transactions.forEach(tx => {
+    if (tx.repeat === "monthly") {
+      const start = new Date(tx.date + "T12:00:00");
+      const end = new Date(today + "T12:00:00");
+      if (start > end) return;
+
+      let occurrence = new Date(start);
+      let index = 0;
+      while (occurrence <= end) {
+        const key = (tx.type === "card" && cardOf(tx).day > 0)
+          ? monthKey(addMonths(occurrence, cardOffsetFor(cardOf(tx))))
+          : monthKey(occurrence);
+        const shown = monthKey(occurrence);
+
+        if (tx.type === "income") add(shown, tx, amountForMonth(tx, key), 1);
+        else if ((tx.paidMonths || []).includes(key)) add(shown, tx, amountForMonth(tx, key), -1);
+
+        index++;
+        occurrence = addMonths(start, index);
+      }
+    } else {
+      const shown = String(tx.date).slice(0, 7);
+      if (tx.type === "income" && tx.date <= today) add(shown, tx, tx.amount, 1);
+      if ((tx.type === "expense" || tx.type === "card") && tx.paid) add(shown, tx, tx.amount, -1);
+    }
+  });
+
+  const initial = Number(priv.initialBalance) || 0;
+  const vaults = vaultsTotal();
+  return {
+    initial, income, paid, vaults,
+    total: initial + income - paid - vaults,
+    months: Object.values(months).sort((a, b) => b.key.localeCompare(a.key))
+  };
+}
+
+function openWalletModal() {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const data = walletBreakdown();
+  const { overlay, menu } = showModal(t("wbTitle"), t("wbHelp"));
+  menu.style.maxHeight = "88vh";
+  menu.style.overflowY = "auto";
+
+  const line = (label, value, strong) => {
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;justify-content:space-between;gap:12px;padding:6px 0;" + (strong ? "font-weight:bold;border-top:1px solid currentColor;margin-top:6px;" : "");
+    const a = document.createElement("span");
+    a.textContent = label;
+    const b = document.createElement("span");
+    b.textContent = value;
+    row.append(a, b);
+    return row;
+  };
+
+  menu.appendChild(line(t("wbInitial"), money(data.initial)));
+  menu.appendChild(line("➕ " + t("wbIncome"), money(data.income)));
+  menu.appendChild(line("➖ " + t("wbPaid"), money(data.paid)));
+  if (data.vaults) menu.appendChild(line("🏦 " + t("wbVaults"), money(data.vaults)));
+  menu.appendChild(line("= " + t("wbResult"), money(data.total), true));
+
+  const head = document.createElement("h3");
+  head.textContent = t("wbByMonth");
+  head.style.marginTop = "16px";
+  menu.appendChild(head);
+
+  if (!data.months.length) {
+    const none = document.createElement("p");
+    none.textContent = t("wbNone");
+    menu.appendChild(none);
+  }
+
+  data.months.forEach(m => {
+    const [year, month] = m.key.split("-").map(Number);
+    const name = monthLong(new Date(year, month - 1, 1, 12)) + " " + year;
+    const net = m.income - m.paid;
+
+    const box = document.createElement("details");
+    box.style.cssText = "border-top:1px solid rgba(128,128,128,.35);padding:6px 0;";
+    const sum = document.createElement("summary");
+    sum.style.cssText = "display:flex;justify-content:space-between;gap:12px;cursor:pointer;";
+    const left = document.createElement("span");
+    left.textContent = name;
+    const right = document.createElement("strong");
+    right.textContent = (net >= 0 ? "+ " : "- ") + money(Math.abs(net));
+    sum.append(left, right);
+    box.appendChild(sum);
+
+    m.items.forEach(item => {
+      const row = line((item.sign > 0 ? "➕ " : "➖ ") + item.description, (item.sign > 0 ? "+ " : "- ") + money(item.amount));
+      row.style.fontSize = "14px";
+      row.style.opacity = "0.9";
+      box.appendChild(row);
+    });
+    menu.appendChild(box);
+  });
+
+  addModalButton(menu, t("close"), () => overlay.remove(), "cancel-action");
+}
+
+(function () {
+  const box = document.querySelector(".f-wallet");
+  if (!box) return;
+  box.style.cursor = "pointer";
+  box.setAttribute("role", "button");
+  box.setAttribute("tabindex", "0");
+  box.addEventListener("click", openWalletModal);
+  box.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWalletModal(); } });
+})();
+
 /* ---------- INICIAR ---------- */
 loadSettings();
 rebuildCategories();
