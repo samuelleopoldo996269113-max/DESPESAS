@@ -1548,6 +1548,78 @@ function wrapWithInfo(id, key, grow) {
     .forEach(([id, key]) => wrapWithInfo(id, key, true));
 })();
 
+/* ---------- BOTÃO VOLTAR DO CELULAR ----------
+   Voltar fecha a janela/tela aberta dentro do app. Na tela inicial, pede para apertar de novo antes de sair. */
+(function setupBackButton() {
+  if (!window.history || !history.pushState) return;
+  const txOv = document.getElementById("txOverlay");
+  const setOv = document.getElementById("settingsOverlay");
+  let depth = 0;          // quantas telas abertas por cima da inicial já têm entrada no histórico
+  let syncing = false;    // true enquanto o app mesmo desfaz entradas do histórico
+  let armedUntil = 0;     // tempo limite do "aperte de novo para sair"
+
+  const dynamic = () => [...document.querySelectorAll(".action-overlay:not(#settingsOverlay)")];
+  const count = () => dynamic().length + (txOv && !txOv.hidden ? 1 : 0) + (setOv && !setOv.hidden ? 1 : 0);
+
+  function guard() { try { history.pushState({ passo: "inicio" }, ""); } catch {} }
+
+  function closeTop() {
+    const dyn = dynamic();
+    if (dyn.length) { dyn[dyn.length - 1].remove(); return true; }
+    if (txOv && !txOv.hidden) { txOv.hidden = true; return true; }
+    if (setOv && !setOv.hidden) { const close = document.getElementById("closeSettings"); if (close) close.click(); else setOv.hidden = true; return true; }
+    return false;
+  }
+
+  function reconcile() {
+    const n = count();
+    if (n > depth) {
+      for (let i = depth; i < n; i++) { try { history.pushState({ passo: "tela" }, ""); } catch {} }
+      depth = n;
+    } else if (n < depth) {
+      const back = depth - n;
+      depth = n;
+      syncing = true;
+      history.go(-back);
+    }
+  }
+
+  function toast(text) {
+    let el = document.getElementById("backToast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "backToast";
+      el.style.cssText = "position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#222c44;color:#fff;padding:10px 16px;border-radius:20px;font-size:14px;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.4);max-width:90%;text-align:center;";
+      document.body.appendChild(el);
+    }
+    el.textContent = text;
+    el.hidden = false;
+    clearTimeout(el._t);
+    el._t = setTimeout(() => { el.hidden = true; }, 2000);
+  }
+
+  window.addEventListener("popstate", () => {
+    if (syncing) { syncing = false; return; }
+    if (depth > 0) {
+      depth--;
+      closeTop();
+      reconcile();
+      return;
+    }
+    if (Date.now() < armedUntil) { armedUntil = 0; history.back(); return; }
+    armedUntil = Date.now() + 2000;
+    guard();
+    toast(t("backExit"));
+  });
+
+  new MutationObserver(reconcile).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["hidden"] });
+  guard();
+})();
+
+Object.assign(I18N.pt, { backExit: "Aperte voltar de novo para sair" });
+Object.assign(I18N.en, { backExit: "Press back again to exit" });
+Object.assign(I18N.es, { backExit: "Presiona atrás otra vez para salir" });
+
 /* ---------- INICIAR ---------- */
 loadSettings();
 rebuildCategories();
