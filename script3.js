@@ -944,6 +944,22 @@ Object.assign(I18N.pt, { mergeReceiveAll: "Marcar todas como recebidas", mergeUn
 Object.assign(I18N.en, { mergeReceiveAll: "Mark all as received", mergeUnpayAll: "Mark all as pending", mergeNotReceiveAll: "Mark all as not received", mergeReceivedOf: "{p} of {n} received" });
 Object.assign(I18N.es, { mergeReceiveAll: "Marcar todas como recibidas", mergeUnpayAll: "Marcar todas como pendientes", mergeNotReceiveAll: "Marcar todas como no recibidas", mergeReceivedOf: "{p} de {n} recibidas" });
 
+Object.assign(I18N.pt, {
+  partialPay: "Pagar parcial", partialTitle: "Pagar parcial", partialLeft: "falta {v}", partialAmountPh: "Quanto você pagou agora? (R$)",
+  partialStatus: "pago {p} · falta {v}", partialInvalid: "Digite um valor maior que zero.",
+  partialTooMuch: "Esse valor cobre tudo o que falta ({v}). Use \"Marcar como paga\".", partialClear: "Zerar pagamento parcial"
+});
+Object.assign(I18N.en, {
+  partialPay: "Pay part", partialTitle: "Partial payment", partialLeft: "{v} left", partialAmountPh: "How much did you pay now?",
+  partialStatus: "paid {p} · {v} left", partialInvalid: "Enter a value greater than zero.",
+  partialTooMuch: "That covers everything left ({v}). Use \"Mark as paid\".", partialClear: "Clear partial payment"
+});
+Object.assign(I18N.es, {
+  partialPay: "Pagar parcial", partialTitle: "Pago parcial", partialLeft: "faltan {v}", partialAmountPh: "¿Cuánto pagaste ahora?",
+  partialStatus: "pagado {p} · faltan {v}", partialInvalid: "Escribe un valor mayor que cero.",
+  partialTooMuch: "Ese valor cubre todo lo que falta ({v}). Usa \"Marcar como pagada\".", partialClear: "Borrar pago parcial"
+});
+
 /* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
 Object.assign(I18N.pt, {
   wbTitle: "De onde vem a Carteira", wbHelp: "A Carteira soma todos os meses, não só o que está na tela.",
@@ -992,6 +1008,7 @@ function walletBreakdown() {
 
         if (tx.type === "income") { if (!(tx.notReceivedMonths || []).includes(key)) add(shown, tx, amountForMonth(tx, key), 1); }
         else if ((tx.paidMonths || []).includes(key)) add(shown, tx, amountForMonth(tx, key), -1);
+        else if (((tx.partialMonths || {})[key] || 0) > 0) add(shown, tx, Math.min(tx.partialMonths[key], amountForMonth(tx, key)), -1);
 
         index++;
         occurrence = addMonths(start, index);
@@ -1000,6 +1017,7 @@ function walletBreakdown() {
       const shown = String(tx.date).slice(0, 7);
       if (tx.type === "income" && tx.date <= today && !tx.notReceived) add(shown, tx, tx.amount, 1);
       if ((tx.type === "expense" || tx.type === "card") && tx.paid) add(shown, tx, tx.amount, -1);
+      else if ((tx.type === "expense" || tx.type === "card") && Number(tx.partial) > 0) add(shown, tx, Math.min(Number(tx.partial), tx.amount), -1);
     }
   });
 

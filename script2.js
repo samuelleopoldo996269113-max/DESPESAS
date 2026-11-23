@@ -678,7 +678,7 @@ function updateInvoiceBar() {
 
     const pending = mine.filter(tx => !tx.paid);
     const shown = pending.length ? pending : mine;
-    const total = shown.reduce((sum, tx) => sum + tx.amount, 0);
+    const total = shown.reduce((sum, tx) => sum + leftOf(tx), 0);
 
     const bar = document.createElement("div");
     bar.className = "invoice-bar" + (pending.length ? "" : " paga");

@@ -339,7 +339,8 @@ function getMonthTransactions(forDate = currentDate) {
           date: due,
           amount: amountForMonth(tx, selectedMonth),
           originalId: tx.id,
-          paid: (tx.paidMonths || []).includes(selectedMonth)
+          paid: (tx.paidMonths || []).includes(selectedMonth),
+          partial: (tx.partialMonths || {})[selectedMonth] || 0
         });
       } else if (tx.date.substring(0, 7) === srcKey) {
         result.push({ ...tx, date: due, originalId: tx.id });
@@ -363,7 +364,8 @@ function getMonthTransactions(forDate = currentDate) {
         date: dateString(occurrence),
         amount: amountForMonth(tx, key),
         originalId: tx.id,
-        paid: (tx.paidMonths || []).includes(key)
+        paid: (tx.paidMonths || []).includes(key),
+        partial: (tx.partialMonths || {})[key] || 0
       });
     } else if (tx.date.substring(0, 7) === selectedMonth) {
       result.push({ ...tx, originalId: tx.id });
@@ -426,7 +428,8 @@ function render() {
     status.className = "status";
     status.textContent = tx.type === "income"
       ? (received ? t("received") : incomeLate ? t(settings.view.overdueHighlight ? "incomeOverdue" : "toReceive") : t("planned"))
-      : (tx.paid ? t("paid") : (isOverdue && settings.view.overdueHighlight ? t("overdueLabel") : t("pending")));
+      : (tx.paid ? t("paid") : (isOverdue && settings.view.overdueHighlight ? t("overdueLabel") : t("pending")))
+        + (partialOf(tx) > 0 ? " · " + t("partialStatus").replace("{p}", money(partialOf(tx))).replace("{v}", money(leftOf(tx))) : "");
 
     const left = document.createElement("div");
     left.append(name, date, status);
@@ -469,11 +472,19 @@ function render() {
   renderExtras();
 }
 
+/* Pagamento parcial: quanto já foi pago de uma conta ainda pendente e quanto falta. */
+function partialOf(tx) {
+  return tx.paid ? 0 : Math.min(Number(tx.partial) || 0, tx.amount);
+}
+function leftOf(tx) {
+  return Math.round((tx.amount - partialOf(tx)) * 100) / 100;
+}
+
 function updateSummary(items) {
   const expenses = items.filter(tx => tx.type === "expense");
 
   const total = expenses.reduce((sum, tx) => sum + tx.amount, 0);
-  const remaining = expenses.filter(tx => !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
+  const remaining = expenses.filter(tx => !tx.paid).reduce((sum, tx) => sum + leftOf(tx), 0);
 
   let wallet = Number(priv.initialBalance) || 0;
   const today = dateString(new Date());
@@ -496,6 +507,8 @@ function updateSummary(items) {
           if (!(tx.notReceivedMonths || []).includes(key)) wallet += amountForMonth(tx, key);
         } else if ((tx.paidMonths || []).includes(key)) {
           wallet -= amountForMonth(tx, key);
+        } else {
+          wallet -= Math.min((tx.partialMonths || {})[key] || 0, amountForMonth(tx, key));
         }
 
         index++;
@@ -504,12 +517,13 @@ function updateSummary(items) {
     } else {
       if (tx.type === "income" && tx.date <= today && !tx.notReceived) wallet += tx.amount;
       if ((tx.type === "expense" || tx.type === "card") && tx.paid) wallet -= tx.amount;
+      else if (tx.type === "expense" || tx.type === "card") wallet -= Math.min(Number(tx.partial) || 0, tx.amount);
     }
   });
 
   wallet -= vaultsTotal();
 
-  const cardTotal = items.filter(tx => tx.type === "card" && !tx.paid).reduce((sum, tx) => sum + tx.amount, 0);
+  const cardTotal = items.filter(tx => tx.type === "card" && !tx.paid).reduce((sum, tx) => sum + leftOf(tx), 0);
   document.getElementById("cardTotal").textContent = money(cardTotal);
 
   document.getElementById("totalExpenses").textContent = money(total);
@@ -541,14 +555,14 @@ function getOverdueExpenses() {
         const day = dateString(occurrence);
 
         if (day < today && !(tx.paidMonths || []).includes(key)) {
-          overdue.push({ description: tx.description, amount: amountForMonth(tx, key), date: day });
+          overdue.push({ description: tx.description, amount: Math.max(0, amountForMonth(tx, key) - ((tx.partialMonths || {})[key] || 0)), date: day });
         }
 
         index++;
         occurrence = addMonths(start, index);
       }
     } else if (!tx.paid && tx.date < today) {
-      overdue.push({ description: tx.description, amount: tx.amount, date: tx.date });
+      overdue.push({ description: tx.description, amount: Math.max(0, tx.amount - (Number(tx.partial) || 0)), date: tx.date });
     }
   });
 
@@ -691,6 +705,55 @@ function isNotReceived(tx) {
   return !!tx.notReceived;
 }
 
+/* Registra um pagamento parcial (soma ao que já foi pago). Só vale se ainda falta algo. */
+function addPartial(tx, value) {
+  const original = transactions.find(item => item.id === tx.originalId);
+  if (!original || tx.paid) return false;
+  if (!(value > 0) || value >= leftOf(tx) - 0.001) return false;
+
+  if (tx.repeat === "monthly") {
+    const key = monthKey(new Date(tx.date + "T12:00:00"));
+    original.partialMonths = { ...(original.partialMonths || {}), [key]: Math.round(((original.partialMonths || {})[key] || 0) * 100 + value * 100) / 100 };
+  } else {
+    original.partial = Math.round(((Number(original.partial) || 0) * 100) + value * 100) / 100;
+  }
+  saveData();
+  render();
+  return true;
+}
+
+function clearPartial(tx) {
+  const original = transactions.find(item => item.id === tx.originalId);
+  if (!original) return;
+  if (tx.repeat === "monthly") {
+    const key = monthKey(new Date(tx.date + "T12:00:00"));
+    const map = { ...(original.partialMonths || {}) };
+    delete map[key];
+    original.partialMonths = map;
+  } else {
+    delete original.partial;
+  }
+  saveData();
+  render();
+}
+
+function openPartial(tx) {
+  if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
+  const { overlay, menu } = showModal(t("partialTitle"), tx.description + " · " + t("partialLeft").replace("{v}", money(leftOf(tx))));
+  const input = makeField(menu, t("partialAmountPh"), "text", "", "0,00");
+  input.inputMode = "decimal";
+  const showError = modalMessage(menu);
+
+  addModalButton(menu, t("save"), () => {
+    const value = parseMoneyText(input.value);
+    if (!(value > 0)) { showError(t("partialInvalid")); return; }
+    if (value >= leftOf(tx) - 0.001) { showError(t("partialTooMuch").replace("{v}", money(leftOf(tx)))); return; }
+    overlay.remove();
+    addPartial(tx, value);
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
 function setReceived(tx, wantReceived) {
   const original = transactions.find(item => item.id === tx.originalId);
   if (!original) return false;
@@ -722,6 +785,13 @@ function transactionOptions(tx) {
       overlay.remove();
       setPaid(tx, !tx.paid);
     });
+
+    if (!tx.paid) {
+      addModalButton(menu, t("partialPay"), () => { overlay.remove(); openPartial(tx); });
+      if (partialOf(tx) > 0) {
+        addModalButton(menu, t("partialClear"), () => { overlay.remove(); clearPartial(tx); });
+      }
+    }
   }
 
   if (tx.type === "income") {
