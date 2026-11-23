@@ -940,9 +940,9 @@ Object.assign(I18N.es, {
   overdueIncomeTitle: "Ingresos atrasados:", expectedOn: "previsto para"
 });
 
-Object.assign(I18N.pt, { mergeReceiveAll: "Marcar todas como recebidas", mergeUnpayAll: "Marcar todas como pendentes" });
-Object.assign(I18N.en, { mergeReceiveAll: "Mark all as received", mergeUnpayAll: "Mark all as pending" });
-Object.assign(I18N.es, { mergeReceiveAll: "Marcar todas como recibidas", mergeUnpayAll: "Marcar todas como pendientes" });
+Object.assign(I18N.pt, { mergeReceiveAll: "Marcar todas como recebidas", mergeUnpayAll: "Marcar todas como pendentes", mergeNotReceiveAll: "Marcar todas como não recebidas", mergeReceivedOf: "{p} de {n} recebidas" });
+Object.assign(I18N.en, { mergeReceiveAll: "Mark all as received", mergeUnpayAll: "Mark all as pending", mergeNotReceiveAll: "Mark all as not received", mergeReceivedOf: "{p} of {n} received" });
+Object.assign(I18N.es, { mergeReceiveAll: "Marcar todas como recibidas", mergeUnpayAll: "Marcar todas como pendientes", mergeNotReceiveAll: "Marcar todas como no recibidas", mergeReceivedOf: "{p} de {n} recibidas" });
 
 /* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
 Object.assign(I18N.pt, {
@@ -1144,7 +1144,10 @@ function mergeNumbers(members) {
   const inSum = members.filter(tx => tx.type === "income").reduce((s, tx) => s + tx.amount, 0);
   const outSum = members.filter(tx => tx.type !== "income").reduce((s, tx) => s + tx.amount, 0);
   const pays = members.filter(tx => tx.type !== "income");
-  return { inSum, outSum, net: Math.round((inSum - outSum) * 100) / 100, pays, paid: pays.filter(tx => tx.paid).length };
+  const today = dateString(new Date());
+  const ins = members.filter(tx => tx.type === "income");
+  const insReceived = ins.filter(tx => !isNotReceived(tx) && tx.date <= today);
+  return { inSum, outSum, net: Math.round((inSum - outSum) * 100) / 100, pays, paid: pays.filter(tx => tx.paid).length, ins, insReceived, insLate: ins.filter(tx => isNotReceived(tx)) };
 }
 
 function mergedRow(group) {
@@ -1153,7 +1156,8 @@ function mergedRow(group) {
   const div = document.createElement("div");
   div.className = "tx merged " + (n.net > 0 ? "income" : n.net < 0 ? "expense" : "zero");
   if (n.net < 0 && n.pays.length && n.paid === n.pays.length) div.classList.add("done");
-  if (n.net > 0) div.classList.add("received");
+  if (n.net > 0 && !n.insLate.length) div.classList.add("received");
+  if (n.insLate.length && n.insLate.some(tx => tx.date < dateString(new Date()))) div.classList.add("overdue");
 
   const name = document.createElement("div");
   name.className = "tx-name";
@@ -1176,6 +1180,12 @@ function mergedRow(group) {
     const status = document.createElement("div");
     status.className = "status";
     status.textContent = t("mergePaidOf").replace("{p}", n.paid).replace("{n}", n.pays.length);
+    left.appendChild(status);
+  }
+  if (n.ins.length) {
+    const status = document.createElement("div");
+    status.className = "status";
+    status.textContent = t("mergeReceivedOf").replace("{p}", n.insReceived.length).replace("{n}", n.ins.length);
     left.appendChild(status);
   }
 
@@ -1239,11 +1249,16 @@ function mergedOptions(group) {
       n.pays.forEach(tx => setPaid(tx, false));
     });
   }
-  const lateIncomes = members.filter(tx => tx.type === "income" && isNotReceived(tx));
-  if (lateIncomes.length) {
+  if (n.insLate.length) {
     addModalButton(menu, t("mergeReceiveAll"), () => {
       overlay.remove();
-      lateIncomes.forEach(tx => setReceived(tx, true));
+      n.insLate.forEach(tx => setReceived(tx, true));
+    });
+  }
+  if (n.insReceived.length) {
+    addModalButton(menu, t("mergeNotReceiveAll"), () => {
+      overlay.remove();
+      n.insReceived.forEach(tx => setReceived(tx, false));
     });
   }
   addModalButton(menu, t("mergeSplitAll"), () => { overlay.remove(); splitMerge(merge, null); });
