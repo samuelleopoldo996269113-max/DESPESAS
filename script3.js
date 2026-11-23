@@ -940,6 +940,10 @@ Object.assign(I18N.es, {
   overdueIncomeTitle: "Ingresos atrasados:", expectedOn: "previsto para"
 });
 
+Object.assign(I18N.pt, { mergeReceiveAll: "Marcar todas como recebidas", mergeUnpayAll: "Marcar todas como pendentes" });
+Object.assign(I18N.en, { mergeReceiveAll: "Mark all as received", mergeUnpayAll: "Mark all as pending" });
+Object.assign(I18N.es, { mergeReceiveAll: "Marcar todas como recibidas", mergeUnpayAll: "Marcar todas como pendientes" });
+
 /* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
 Object.assign(I18N.pt, {
   wbTitle: "De onde vem a Carteira", wbHelp: "A Carteira soma todos os meses, não só o que está na tela.",
@@ -1204,8 +1208,9 @@ function mergedOptions(group) {
     const open = document.createElement("button");
     open.type = "button";
     open.className = "merge-open " + tx.type + (tx.paid ? " done" : "");
+    const lateIncome = tx.type === "income" && isNotReceived(tx);
     const status = tx.type === "income"
-      ? (tx.date <= dateString(new Date()) ? t("received") : t("planned"))
+      ? (lateIncome ? (tx.date < dateString(new Date()) ? t("incomeOverdue") : t("planned")) : (tx.date <= dateString(new Date()) ? t("received") : t("planned")))
       : (tx.paid ? t("paid") : t("pending"));
     open.textContent = `${tx.description}\n${tx.type === "income" ? "+ " : "- "}${money(tx.amount)} · ${status}`;
     open.addEventListener("click", () => { overlay.remove(); transactionOptions(tx); });
@@ -1226,6 +1231,19 @@ function mergedOptions(group) {
     addModalButton(menu, t("mergePayAll"), () => {
       overlay.remove();
       unpaid.forEach(tx => setPaid(tx, true));
+    });
+  }
+  if (n.pays.length && !unpaid.length) {
+    addModalButton(menu, t("mergeUnpayAll"), () => {
+      overlay.remove();
+      n.pays.forEach(tx => setPaid(tx, false));
+    });
+  }
+  const lateIncomes = members.filter(tx => tx.type === "income" && isNotReceived(tx));
+  if (lateIncomes.length) {
+    addModalButton(menu, t("mergeReceiveAll"), () => {
+      overlay.remove();
+      lateIncomes.forEach(tx => setReceived(tx, true));
     });
   }
   addModalButton(menu, t("mergeSplitAll"), () => { overlay.remove(); splitMerge(merge, null); });
