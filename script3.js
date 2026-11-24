@@ -960,6 +960,10 @@ Object.assign(I18N.es, {
   partialTooMuch: "Ese valor cubre todo lo que falta ({v}). Usa \"Marcar como pagada\".", partialClear: "Borrar pago parcial"
 });
 
+Object.assign(I18N.pt, { scanChooseTitle: "Ler uma conta", scanChooseText: "O app lê o valor, a descrição e a data. Funciona com nota, cupom, boleto e print do app do banco.", scanCamera: "📷 Tirar foto agora", scanGallery: "🖼️ Escolher da galeria" });
+Object.assign(I18N.en, { scanChooseTitle: "Read a bill", scanChooseText: "The app reads the amount, description and date. Works with receipts, bank slips and bank app screenshots.", scanCamera: "📷 Take a photo now", scanGallery: "🖼️ Choose from gallery" });
+Object.assign(I18N.es, { scanChooseTitle: "Leer una cuenta", scanChooseText: "La app lee el valor, la descripción y la fecha. Sirve con recibos, boletas y capturas del banco.", scanCamera: "📷 Tomar foto ahora", scanGallery: "🖼️ Elegir de la galería" });
+
 /* ---------- CARTEIRA: TOCAR PARA VER DE ONDE VEM O VALOR ---------- */
 Object.assign(I18N.pt, {
   wbTitle: "De onde vem a Carteira", wbHelp: "A Carteira soma todos os meses, não só o que está na tela.",
@@ -1465,7 +1469,7 @@ const INFO_PT = {
   vaults: ["Cofres", "Servem para juntar dinheiro para um plano, como uma viagem ou uma reserva. Cada cofre tem nome, valor-alvo e, se quiser, uma data. Toque num cofre para guardar dinheiro, retirar, editar ou excluir.\n\nGuardar dinheiro tira da Carteira, e retirar devolve para a Carteira. Se a Carteira não tiver esse saldo, ela fica negativa.\n\nA barra mostra o quanto já foi guardado e, quando há data, quanto guardar por mês."],
   filters: ["Busca e filtros", "O campo de busca procura pelo nome da conta (e pela observação, se ela estiver ligada).\n\nO botão Filtros deixa escolher uma categoria e uma situação: pagas, pendentes ou atrasadas. Limpar filtros volta ao normal.\n\nOs filtros só escondem itens da lista, nada é apagado."],
   sort: ["Ordenar a lista", "Muda a ordem da lista do mês: por data (padrão), maior valor, menor valor ou nome (A-Z).\n\nAo abrir o app, a lista sempre volta para data."],
-  scan: ["Câmera (ler nota)", "O botão da câmera, no topo, tira a foto de uma nota ou cupom e tenta preencher a despesa sozinho. A imagem é lida no próprio aparelho.\n\nNa primeira vez o app baixa um componente de leitura, então precisa de internet. Sempre confira o valor e a data antes de salvar, porque a leitura pode errar."],
+  scan: ["Câmera (ler nota)", "O botão da câmera, no topo, deixa você tirar a foto de uma nota, cupom ou boleto, ou escolher uma imagem da galeria (como um print do app do banco), e tenta preencher valor, descrição e data sozinho. Em boleto, usa a linha de números para pegar o valor e o vencimento. A imagem é lida no próprio aparelho.\n\nNa primeira vez o app baixa um componente de leitura, então precisa de internet. Sempre confira o valor e a data antes de salvar, porque a leitura pode errar."],
   alertOverdue: ["Contas atrasadas", "Mostra uma caixa vermelha no topo com as despesas pendentes cuja data de vencimento já passou.\n\nTambém lista os recebimentos atrasados: entradas que você marcou como \"Ainda não recebi\" e cuja data já passou."],
   alertSoon: ["Contas vencendo em breve", "Mostra uma caixa amarela com as contas pendentes que vencem hoje ou nos próximos dias.\n\nVocê escolhe a antecedência (1, 2 ou 3 dias) na opção Avisar vencimentos com antecedência."],
   alertBudget: ["Orçamento do mês", "Avisa quando uma categoria chegou a 80% do limite que você definiu, e em vermelho quando o limite estoura.\n\nSó aparece para categorias que têm orçamento definido."],

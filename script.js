@@ -1507,13 +1507,38 @@ function scanFindDate(lines, todayText) {
   return todayText;
 }
 
+/* Boleto bancário: a linha digitável tem 47 números; os 14 últimos trazem o fator de vencimento (4) e o valor em centavos (10). */
+function scanBoleto(text) {
+  const candidates = String(text || "").match(/\d[\d .\-]{40,70}\d/g) || [];
+  for (const raw of candidates) {
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length !== 47) continue;
+    const factor = Number(digits.slice(33, 37));
+    const cents = Number(digits.slice(37, 47));
+    if (!(cents > 0)) continue;
+    let date = "";
+    if (factor >= 1000) {
+      const day = 86400000;
+      const newBase = Date.UTC(2025, 1, 22) - 1000 * day;   // 22/02/2025 voltou ao fator 1000
+      const oldBase = Date.UTC(1997, 9, 7);
+      let when = newBase + factor * day;
+      if (when < Date.UTC(2025, 1, 22)) when = oldBase + factor * day;
+      const d = new Date(when);
+      date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    }
+    return { value: cents / 100, date };
+  }
+  return null;
+}
+
 function parseReceipt(text, todayText) {
   const fixed = String(text || "").replace(/(\d)\s*([,.])\s*(\d{2})(?!\d)/g, "$1$2$3");
   const lines = fixed.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const boleto = scanBoleto(String(text || ""));
   return {
-    value: scanFindTotal(lines),
+    value: boleto ? boleto.value : scanFindTotal(lines),
     name: scanFindName(lines),
-    date: scanFindDate(lines, todayText)
+    date: boleto && boleto.date ? boleto.date : scanFindDate(lines, todayText)
   };
 }
 /* PURE:END */
@@ -1659,8 +1684,30 @@ document.getElementById("scanButton").addEventListener("click", () => {
   if (!document.getElementById("txOverlay").hidden) return;
   if (!document.getElementById("settingsOverlay").hidden) return;
   if (document.querySelector(".action-overlay:not(#settingsOverlay)")) return;
-  document.getElementById("scanFile").click();
+  scanChoose();
 });
+
+/* Escolher entre tirar a foto agora ou usar uma imagem da galeria (nota, boleto, print do banco). */
+function scanChoose() {
+  const { overlay, menu } = showModal(t("scanChooseTitle"), t("scanChooseText"));
+  addModalButton(menu, t("scanCamera"), () => { overlay.remove(); document.getElementById("scanFile").click(); });
+  addModalButton(menu, t("scanGallery"), () => { overlay.remove(); document.getElementById("scanGallery").click(); });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+(function createGalleryInput() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.id = "scanGallery";
+  input.accept = "image/*";
+  input.hidden = true;
+  document.body.appendChild(input);
+  input.addEventListener("change", event => {
+    const file = event.target.files && event.target.files[0];
+    event.target.value = "";
+    if (file) scanReceipt(file);
+  });
+})();
 
 document.getElementById("scanFile").addEventListener("change", event => {
   const file = event.target.files && event.target.files[0];
