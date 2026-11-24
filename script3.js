@@ -960,6 +960,9 @@ Object.assign(I18N.es, {
   partialTooMuch: "Ese valor cubre todo lo que falta ({v}). Usa \"Marcar como pagada\".", partialClear: "Borrar pago parcial"
 });
 
+Object.assign(I18N.pt, { scanPaste: "📋 Colar texto (mensagem do banco)", scanPasteTitle: "Colar texto", scanPasteText: "Cole a mensagem do banco, do WhatsApp ou da fatura. O app acha o valor, a descrição e a data.", scanPastePh: "Ex.: Compra aprovada de R$ 45,90 em MERCADO SOL hoje às 14:20", scanPasteGo: "Preencher conta" });
+Object.assign(I18N.en, { scanPaste: "📋 Paste text (bank message)", scanPasteTitle: "Paste text", scanPasteText: "Paste the bank, WhatsApp or bill message. The app finds the amount, description and date.", scanPastePh: "E.g.: Purchase approved R$ 45.90 at MARKET today", scanPasteGo: "Fill in" });
+Object.assign(I18N.es, { scanPaste: "📋 Pegar texto (mensaje del banco)", scanPasteTitle: "Pegar texto", scanPasteText: "Pega el mensaje del banco, WhatsApp o factura. La app encuentra el valor, la descripción y la fecha.", scanPastePh: "Ej.: Compra aprobada R$ 45,90 en MERCADO hoy", scanPasteGo: "Rellenar" });
 Object.assign(I18N.pt, { scanChooseTitle: "Ler uma conta", scanChooseText: "O app lê o valor, a descrição e a data. Funciona com nota, cupom, boleto e print do app do banco.", scanCamera: "📷 Tirar foto agora", scanGallery: "🖼️ Escolher da galeria" });
 Object.assign(I18N.en, { scanChooseTitle: "Read a bill", scanChooseText: "The app reads the amount, description and date. Works with receipts, bank slips and bank app screenshots.", scanCamera: "📷 Take a photo now", scanGallery: "🖼️ Choose from gallery" });
 Object.assign(I18N.es, { scanChooseTitle: "Leer una cuenta", scanChooseText: "La app lee el valor, la descripción y la fecha. Sirve con recibos, boletas y capturas del banco.", scanCamera: "📷 Tomar foto ahora", scanGallery: "🖼️ Elegir de la galería" });

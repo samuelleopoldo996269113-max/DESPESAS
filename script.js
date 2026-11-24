@@ -1541,6 +1541,29 @@ function parseReceipt(text, todayText) {
     date: boleto && boleto.date ? boleto.date : scanFindDate(lines, todayText)
   };
 }
+/* Mensagem colada (aviso de banco, WhatsApp, fatura): valor, descrição e data. */
+function parseMessage(text, todayText) {
+  const base = parseReceipt(text, todayText);
+  const flat = String(text || "").replace(/\s+/g, " ");
+  let name = "";
+  const re = /\b(?:em|no|na|para|pra|de|do|da|a favor de)\s+((?!R\$)[A-Za-zÀ-ú0-9][A-Za-zÀ-ú0-9&*'. -]{2,38}?)(?=\s+(?:em|no|na|hoje|ontem|[àa]s|dia|final|valor|R\$|\d{1,2}[\/.-]\d{1,2}|\d{1,2}h)|[,.;!]\s|\s*$)/gi;
+  let m;
+  while ((m = re.exec(flat))) {
+    if (!/^(r\$|cart[aã]o|conta|sua|seu|um|uma|final|valor)\b/i.test(m[1])) { name = m[1].trim(); break; }
+  }
+  if (!name) {
+    const head = flat.split(/R\$/i)[0].replace(/[:\-–]+\s*$/, "").trim();
+    if (head && head.length <= 40 && !/\d/.test(head) && head.split(" ").length <= 4) name = head;
+  }
+  if (name && name === name.toUpperCase()) name = scanTitleCase(name);
+  let date = base.date;
+  const today = new Date(todayText + "T12:00:00");
+  if (!scanDatesIn(flat).length) {
+    if (/\bontem\b/i.test(flat)) { today.setDate(today.getDate() - 1); date = dateString(today); }
+    else date = todayText;
+  }
+  return { value: base.value, name: name || base.name, date };
+}
 /* PURE:END */
 
 function scanShow(message) {
@@ -1691,8 +1714,25 @@ document.getElementById("scanButton").addEventListener("click", () => {
 function scanChoose() {
   const { overlay, menu } = showModal(t("scanChooseTitle"), t("scanChooseText"));
   addModalButton(menu, t("scanCamera"), () => { overlay.remove(); document.getElementById("scanFile").click(); });
+  addModalButton(menu, t("scanPaste"), () => { overlay.remove(); scanPasteText(); });
   addModalButton(menu, t("scanGallery"), () => { overlay.remove(); document.getElementById("scanGallery").click(); });
   addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+}
+
+function scanPasteText() {
+  const { overlay, menu } = showModal(t("scanPasteTitle"), t("scanPasteText"));
+  const area = document.createElement("textarea");
+  area.rows = 5;
+  area.placeholder = t("scanPastePh");
+  area.style.cssText = "width:100%;box-sizing:border-box;padding:10px;border-radius:10px;font-size:16px;margin:8px 0;";
+  menu.appendChild(area);
+  addModalButton(menu, t("scanPasteGo"), () => {
+    const result = parseMessage(area.value, dateString(new Date()));
+    overlay.remove();
+    scanFillForm(result, area.value);
+  });
+  addModalButton(menu, t("cancel"), () => overlay.remove(), "cancel-action");
+  setTimeout(() => area.focus(), 50);
 }
 
 (function createGalleryInput() {
