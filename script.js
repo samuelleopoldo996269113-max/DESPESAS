@@ -1674,7 +1674,7 @@ async function scanReceipt(file) {
     scanFillForm(result, text);
   } catch (error) {
     scanHide();
-    alert(t("scanError"));
+    alert(t("scanError") + "\n\n[" + ((error && (error.message || String(error))) || "?").slice(0, 160) + "]");
   } finally {
     if (worker) { try { await worker.terminate(); } catch {} }
   }
